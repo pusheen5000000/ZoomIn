@@ -35,7 +35,9 @@ export default function App() {
   const [loginPass, setLoginPass] = useState("SeniorSafety2026");
   const [demoLogin, setDemoLogin] = useState(null);
   const [demoBusy, setDemoBusy] = useState(false);
-  const [tab, setTab] = useState("subs");
+  const [tab, setTab] = useState("home");
+  const [subsCount, setSubsCount] = useState(null);
+  const [scansRun, setScansRun] = useState(0);
   const running = job && (job.status === "queued" || job.status === "running");
 
   useEffect(() => {
@@ -53,6 +55,20 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) return undefined;
+    let cancelled = false;
+    api("/subscriptions/")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setSubsCount((data.subscriptions || []).length);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user, tab]);
 
   useEffect(() => {
     if (!scanId) return undefined;
@@ -133,6 +149,7 @@ export default function App() {
       if (!res.ok) throw new Error(`Scan failed (${res.status})`);
       const data = await res.json();
       setScanId(data.scan_id);
+      setScansRun((n) => n + 1);
     } catch (err) {
       setError(err.message);
       setJob(null);
@@ -166,158 +183,236 @@ export default function App() {
 
   if (!authReady) {
     return (
-      <main className="shell">
-        <p className="meta">Loading…</p>
+      <main className="app-shell">
+        <p className="meta" style={{ padding: 32 }}>Loading…</p>
       </main>
     );
   }
 
   if (!user) {
     return (
-      <main className="shell">
-        <A11yToggle />
-        <p className="eyebrow">Senior safety</p>
-        <h1>Sign in</h1>
-        <p className="lede">
-          Use the demo account from the README. This is not a real email. Your
-          session stays active if you refresh.
-        </p>
-        <form className="login-form" onSubmit={signIn}>
-          <label htmlFor="login-user">Email</label>
-          <input
-            id="login-user"
-            type="email"
-            autoComplete="username"
-            value={loginUser}
-            onChange={(e) => setLoginUser(e.target.value)}
-            required
+      <main className="app-shell">
+        <div className="login-shell">
+          <img
+            src="/brand/zoomin-wordmark.png"
+            alt="ZoomIn"
+            className="brand-wordmark"
+            style={{ height: 44, marginBottom: 28 }}
           />
-          <label htmlFor="login-pass">Password</label>
-          <input
-            id="login-pass"
-            type="password"
-            autoComplete="current-password"
-            value={loginPass}
-            onChange={(e) => setLoginPass(e.target.value)}
-            required
-          />
-          <button type="submit">Sign in</button>
-        </form>
-        {error ? <p className="error" role="alert">{error}</p> : null}
-        <p className="meta">Demo: judge@demo.local / SeniorSafety2026</p>
+          <p className="eyebrow">Subscription safety</p>
+          <h1>Sign in</h1>
+          <p className="lede">
+            Use the demo account from the README. This is not a real email. Your
+            session stays active if you refresh.
+          </p>
+          <form className="login-form" onSubmit={signIn}>
+            <label htmlFor="login-user">Email</label>
+            <input
+              id="login-user"
+              type="email"
+              autoComplete="username"
+              value={loginUser}
+              onChange={(e) => setLoginUser(e.target.value)}
+              required
+            />
+            <label htmlFor="login-pass">Password</label>
+            <input
+              id="login-pass"
+              type="password"
+              autoComplete="current-password"
+              value={loginPass}
+              onChange={(e) => setLoginPass(e.target.value)}
+              required
+            />
+            <button type="submit">Sign in</button>
+          </form>
+          {error ? <p className="error" role="alert">{error}</p> : null}
+          <p className="meta">Demo: judge@demo.local / SeniorSafety2026</p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="shell">
-      <div className="topbar">
-        <A11yToggle />
-        <p className="meta signed-in">
-          Signed in as {user}{" "}
-          <button type="button" className="text-btn" onClick={signOut}>
-            Sign out
+    <div className="app-shell">
+      <header className="site-header">
+        <div className="brand">
+          <img src="/brand/zoomin-wordmark.png" alt="ZoomIn" className="brand-wordmark" />
+          <span className="brand-tag">Subscription safety</span>
+        </div>
+        <div className="header-actions">
+          <A11yToggle />
+          <span className="signed-in-label">
+            Signed in as <strong>{user}</strong>{" "}
+            <button type="button" className="text-btn" onClick={signOut}>
+              Sign out
+            </button>
+          </span>
+        </div>
+      </header>
+
+      <main className="shell">
+        <nav className="tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "home"}
+            className={tab === "home" ? "tab on" : "tab"}
+            onClick={() => setTab("home")}
+          >
+            Home
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "subs"}
+            className={tab === "subs" ? "tab on" : "tab"}
+            onClick={() => setTab("subs")}
+          >
+            My subscriptions
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "scan"}
+            className={tab === "scan" ? "tab on" : "tab"}
+            onClick={() => setTab("scan")}
+          >
+            Scan a site
+          </button>
+        </nav>
+
+        {tab === "home" ? (
+          <div className="home-grid">
+            <section className="hero">
+              <div className="hero-copy">
+                <p className="hero-eyebrow">Your money, watched</p>
+                <h1>Know what you pay for. Leave when you want.</h1>
+                <p>
+                  ZoomIn keeps a list of every subscription you have, and
+                  checks a website's wording before you type your card into
+                  it. It never clicks a final Cancel or Pay button for you.
+                </p>
+              </div>
+              <div className="hero-mark">
+                <img src="/brand/zoomin-owl.png" alt="" />
+              </div>
+            </section>
+
+            <section className="month-panel">
+              <div className="month-panel-head">
+                <h2>At a glance</h2>
+              </div>
+              <div className="chip-row">
+                <span className="chip">
+                  {subsCount === null
+                    ? "Loading subscriptions…"
+                    : subsCount === 0
+                      ? "No subscriptions tracked yet"
+                      : `${subsCount} subscription${subsCount === 1 ? "" : "s"} tracked`}
+                </span>
+                <span className="chip">
+                  {scansRun === 0 ? "No sites scanned yet" : `${scansRun} site${scansRun === 1 ? "" : "s"} scanned this session`}
+                </span>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "subs" ? (
+          <Subscriptions onAuthLost={() => setUser(null)} />
+        ) : null}
+
+        {tab === "scan" ? (
+        <>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
+          <h1>Scan a site</h1>
+          <p className="lede">
+            Paste a URL. We scrape it and rate <strong>Payment safety</strong> — whether
+            this snapshot looks like a risky place to type a card. That uses our
+            wording model (Yamana data, Mathur 2019 categories) plus Safe Browsing.
+            It is not an accessibility score.
+          </p>
+        </div>
+
+        <form className="row" onSubmit={runScan}>
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://…"
+            type="url"
+            required
+          />
+          <button type="submit" disabled={Boolean(running)}>
+            {running ? "Scanning…" : "Run scan"}
+          </button>
+        </form>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={skipAgent}
+            onChange={(e) => setSkipAgent(e.target.checked)}
+          />
+          Skip old Browser Use path on scans (Cancel for me uses Playwright recipes)
+        </label>
+
+        <p>
+          <button type="button" className="secondary" onClick={runSteelLogin} disabled={demoBusy}>
+            {demoBusy ? "Running Steel login…" : "Run Steel login demo"}
           </button>
         </p>
-      </div>
-      <p className="eyebrow">Senior safety</p>
-      <h1>Subscription Impossible</h1>
-      <div className="tabs" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "subs"}
-          className={tab === "subs" ? "tab on" : "tab"}
-          onClick={() => setTab("subs")}
-        >
-          My subscriptions
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "scan"}
-          className={tab === "scan" ? "tab on" : "tab"}
-          onClick={() => setTab("scan")}
-        >
-          Scan a site
-        </button>
-      </div>
+        {demoLogin ? (
+          <p className={demoLogin.ok ? "ok-msg" : "error"} role="status">
+            {demoLogin.summary} {demoLogin.error || ""}
+            {demoLogin.viewer_url ? (
+              <>
+                {" "}
+                <a href={demoLogin.viewer_url} target="_blank" rel="noreferrer">
+                  Watch Steel session (about 2 minutes)
+                </a>
+              </>
+            ) : null}
+          </p>
+        ) : null}
 
-      {tab === "subs" ? (
-        <Subscriptions onAuthLost={() => setUser(null)} />
-      ) : (
-      <>
-      <p className="lede">
-        Paste a URL. We scrape it and rate <strong>Payment Safety</strong> — whether
-        this snapshot looks like a risky place to type a card. That uses our
-        wording model (Yamana data, Mathur 2019 categories) plus Safe Browsing.
-        It is not an accessibility score.
-      </p>
+        {error ? <p className="error" role="alert">{error}</p> : null}
 
-      <form className="row" onSubmit={runScan}>
-        <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://…"
-          type="url"
-          required
-        />
-        <button type="submit" disabled={Boolean(running)}>
-          {running ? "Scanning…" : "Run Scan"}
-        </button>
-      </form>
-      <label className="toggle">
-        <input
-          type="checkbox"
-          checked={skipAgent}
-          onChange={(e) => setSkipAgent(e.target.checked)}
-        />
-        Skip old Browser Use path on scans (Cancel for me uses Playwright recipes)
-      </label>
+        {!job ? (
+          <p className="status-row" style={{ background: "var(--panel)", border: "2px solid var(--line)" }}>
+            <span className="meta">No scan run yet. Paste a URL above and press Run scan.</span>
+          </p>
+        ) : (
+        <div className="grid">
+          <section className="panel outline">
+            <h2>Payment safety {running ? "· checking…" : ""}</h2>
+            {running ? (
+              <div className="status-row">
+                <span className="pulse-dot" />
+                <span style={{ fontWeight: 600 }}>Reading the page, checking the wording, asking Safe Browsing…</span>
+              </div>
+            ) : null}
+            {!report ? (
+              !running ? <p className="meta">No report yet.</p> : null
+            ) : (
+              <ReportCard report={report} />
+            )}
+          </section>
 
-      <p>
-        <button type="button" className="secondary" onClick={runSteelLogin} disabled={demoBusy}>
-          {demoBusy ? "Running Steel login…" : "Run Steel login demo"}
-        </button>
-      </p>
-      {demoLogin ? (
-        <p className={demoLogin.ok ? "ok-msg" : "error"} role="status">
-          {demoLogin.summary} {demoLogin.error || ""}
-          {demoLogin.viewer_url ? (
-            <>
-              {" "}
-              <a href={demoLogin.viewer_url} target="_blank" rel="noreferrer">
-                Watch Steel session (about 2 minutes)
-              </a>
-            </>
-          ) : null}
-        </p>
-      ) : null}
+          <section className="panel">
+            <h2>Live scan trace {running ? "· in progress" : ""}</h2>
+            <pre className="trace">{traceText || "Waiting for a scan."}</pre>
+          </section>
+        </div>
+        )}
+        </>
+        ) : null}
+      </main>
 
-      {error ? <p className="error" role="alert">{error}</p> : null}
-
-      <div className="grid">
-        <section className="panel">
-          <h2>Live scan trace {running ? "· in progress" : ""}</h2>
-          <pre className="trace">{traceText || "Waiting for a scan."}</pre>
-        </section>
-
-        <section className="panel">
-          <h2>Report</h2>
-          {!report ? (
-            <p className="meta">
-              {running
-                ? "This can take a while. This page polls until it finishes."
-                : "No report yet."}
-            </p>
-          ) : (
-            <ReportCard report={report} />
-          )}
-        </section>
-      </div>
-      </>
-      )}
-    </main>
+      <footer className="site-footer">
+        <p className="foot-note">ZoomIn never bypasses a login, a CAPTCHA, or a final confirmation.</p>
+        <span className="foot-links">Help · Privacy · Contact a human</span>
+      </footer>
+    </div>
   );
 }
 
