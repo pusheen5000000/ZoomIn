@@ -1,0 +1,30 @@
+{
+  "Scarcity": {
+    "cialdini_principle": "Scarcity",
+    "explanation": "The interface makes the offer feel rare so you act before you think, even when the shortage is manufactured."
+  },
+  "Urgency": {
+    "cialdini_principle": "Scarcity",
+    "explanation": "A ticking clock or 'offer expires' message borrows scarcity of time so you skip comparing options."
+  },
+  "Social Proof": {
+    "cialdini_principle": "Social Proof",
+    "explanation": "Fake or selective 'others are buying' cues make the crowd look like evidence that you should too."
+  },
+  "Misdirection": {
+    "cialdini_principle": "Liking",
+    "explanation": "Visual emphasis and friendly wording pull your eye toward the choice that benefits the company, not you."
+  },
+  "Obstruction": {
+    "cialdini_principle": "Commitment and Consistency",
+    "explanation": "Canceling is buried behind extra steps so you stay subscribed to remain consistent with a past yes."
+  },
+  "Sneaking": {
+    "cialdini_principle": "Commitment and Consistency",
+    "explanation": "Fees, renewals, or items appear after you have already committed, counting on you not to reverse course."
+  },
+  "Forced Action": {
+    "cialdini_principle": "Reciprocity",
+    "explanation": "You must accept extra accounts, emails, or purchases to finish a task, framed as a fair trade for access."
+  }
+}

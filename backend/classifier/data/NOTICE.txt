@@ -1,0 +1,10 @@
+"""Apache-2.0 dataset from yamanalab/ec-darkpattern.
+
+Source: https://github.com/yamanalab/ec-darkpattern (SPDX Apache-2.0)
+Paper: https://arxiv.org/abs/2211.06543
+
+Dark-pattern strings in this TSV were derived from Mathur et al. 2019
+(arXiv:1907.07032). We cite that paper; we do not vendor their GPLv3 crawler.
+
+Keep this notice when redistributing the TSV.
+"""
