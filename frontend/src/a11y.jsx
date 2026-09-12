@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-const STORAGE_KEY = "senior-safety-a11y";
+const STORAGE_KEY = "senior-safety-mode";
 
 const A11yContext = createContext({
   enabled: false,
@@ -10,16 +10,16 @@ const A11yContext = createContext({
 export function A11yProvider({ children }) {
   const [enabled, setEnabledState] = useState(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY) === "on";
+      return localStorage.getItem(STORAGE_KEY) === "plain";
     } catch {
       return false;
     }
   });
 
   useEffect(() => {
-    document.documentElement.dataset.a11y = enabled ? "on" : "off";
+    document.documentElement.dataset.mode = enabled ? "plain" : "standard";
     try {
-      localStorage.setItem(STORAGE_KEY, enabled ? "on" : "off");
+      localStorage.setItem(STORAGE_KEY, enabled ? "plain" : "standard");
     } catch {
       /* ignore */
     }
@@ -39,13 +39,23 @@ export function useA11y() {
 export function A11yToggle() {
   const { enabled, setEnabled } = useA11y();
   return (
-    <button
-      type="button"
-      className="a11y-switch"
-      aria-pressed={enabled}
-      onClick={() => setEnabled(!enabled)}
-    >
-      {enabled ? "Accessibility-Friendly Mode: On" : "Standard Mode — switch to easier reading"}
-    </button>
+    <div className="mode-switch" role="group" aria-label="Reading mode">
+      <button
+        type="button"
+        aria-pressed={!enabled}
+        className={!enabled ? "mode-btn on" : "mode-btn"}
+        onClick={() => setEnabled(false)}
+      >
+        Standard mode
+      </button>
+      <button
+        type="button"
+        aria-pressed={enabled}
+        className={enabled ? "mode-btn on" : "mode-btn"}
+        onClick={() => setEnabled(true)}
+      >
+        Plain mode
+      </button>
+    </div>
   );
 }
