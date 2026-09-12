@@ -8,11 +8,35 @@
   --accent: #ff3b5c;
   --ok: #3ee0a0;
   --warn: #ffcc66;
+  --font-size: 16px;
+  --space: 16px;
+  --btn-pad-y: 12px;
+  --btn-pad-x: 18px;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-size: var(--font-size);
+}
+
+html[data-a11y="on"] {
+  --bg: #111111;
+  --panel: #1c1c1c;
+  --line: #f0c14a;
+  --text: #ffffff;
+  --muted: #f5f0d8;
+  --accent: #c41e3a;
+  --ok: #5cff9f;
+  --warn: #ffe066;
+  --font-size: 22px;
+  --space: 24px;
+  --btn-pad-y: 16px;
+  --btn-pad-x: 22px;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html[data-a11y="on"] * {
+  letter-spacing: 0.01em;
 }
 
 body {
@@ -21,9 +45,21 @@ body {
     radial-gradient(1200px 500px at 10% -10%, #1b2450 0%, transparent 55%),
     var(--bg);
   color: var(--text);
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+html[data-a11y="on"] body {
+  background: var(--bg);
 }
 
 button,
 input {
   font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--warn);
+  outline-offset: 3px;
 }

@@ -13,7 +13,7 @@ from typing import Any, Callable
 from pydantic import BaseModel, Field
 
 from agent.steel_session import SteelSession
-from config import OPENAI_API_KEY, OPENAI_MODEL, SKIP_BROWSER_USE, STEEL_TEST_URL
+from config import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, SKIP_BROWSER_USE, STEEL_TEST_URL
 
 OnEvent = Callable[[dict[str, Any]], None]
 
@@ -27,9 +27,33 @@ class FrictionPoint(BaseModel):
 class CancelFlowOutput(BaseModel):
     reached_cancel_ui: bool
     cancelled: bool
+    needs_user_action: bool = False
+    user_action_reason: str | None = Field(
+        default=None,
+        description="captcha | two_factor | payment | login | other",
+    )
     friction_points: list[FrictionPoint] = Field(default_factory=list)
     summary: str
 
+
+ACT_CANCEL_TASK = """You are helping an older person cancel a subscription. You control a real browser.
+
+The user already confirmed they want this cancellation attempted.
+
+1. Open the given URL.
+2. Look for account, billing, membership, or cancel.
+3. Try to complete cancellation if the site lets you without extra secrets.
+4. STOP immediately (do not guess, bypass, or type secrets) if you see:
+   - a CAPTCHA
+   - two-factor / SMS / authenticator codes
+   - payment card or bank fields
+   - a login that needs a real password you do not have
+5. Never enter real payment data. Never invent passwords or 2FA codes.
+6. Set cancelled=true only if the page clearly says the subscription is cancelled.
+   Set needs_user_action=true if you had to stop for captcha/2FA/payment/login.
+
+Do not wander off to unrelated sites.
+"""
 
 DEFAULT_TASK = """You are auditing this website for dark patterns around cancellation.
 
@@ -88,10 +112,11 @@ async def run_cancel_flow(
     task: str | None = None,
     on_event: OnEvent | None = None,
     max_steps: int = 20,
+    force: bool = False,
 ) -> dict[str, Any]:
     emit = on_event or (lambda _e: None)
 
-    if SKIP_BROWSER_USE:
+    if SKIP_BROWSER_USE and not force:
         emit({"type": "agent_status", "message": "SKIP_BROWSER_USE=1; agent not started"})
         return {
             "ok": True,
@@ -140,7 +165,10 @@ async def run_cancel_flow(
             f"{task or DEFAULT_TASK}\n\nStart URL: {url}\n"
             "Return the structured cancel-flow report when done."
         )
-        llm = ChatOpenAI(model=OPENAI_MODEL, api_key=OPENAI_API_KEY)
+        llm_kwargs: dict[str, Any] = {"model": OPENAI_MODEL, "api_key": OPENAI_API_KEY}
+        if OPENAI_BASE_URL:
+            llm_kwargs["base_url"] = OPENAI_BASE_URL
+        llm = ChatOpenAI(**llm_kwargs)
         agent = Agent(
             task=prompt,
             llm=llm,
@@ -169,6 +197,8 @@ async def run_cancel_flow(
             payload = {
                 "reached_cancel_ui": False,
                 "cancelled": False,
+                "needs_user_action": False,
+                "user_action_reason": None,
                 "friction_points": [],
                 "summary": (history.final_result() if hasattr(history, "final_result") else None)
                 or "Agent finished without structured output.",
@@ -196,11 +226,13 @@ async def run_cancel_flow(
             "friction_points": [],
             "reached_cancel_ui": False,
             "cancelled": False,
+            "needs_user_action": False,
+            "user_action_reason": None,
             "summary": f"Browser Use failed: {exc}",
         }
     finally:
         if owned:
-            session.release()
+            session.release_later()
 
 
 def run_cancel_flow_sync(url: str, **kwargs: Any) -> dict[str, Any]:

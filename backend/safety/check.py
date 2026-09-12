@@ -53,6 +53,19 @@ def check_url(url: str) -> dict[str, Any]:
             )
             response.raise_for_status()
             body = response.json() if response.content else {}
+    except httpx.HTTPStatusError as exc:
+        return {
+            "ok": False,
+            "url": url,
+            "verdict": "error",
+            "malicious": False,
+            "matches": [],
+            "error": (
+                f"Safe Browsing HTTP {exc.response.status_code}. "
+                "This project expects a Google API key (typically AIza…). "
+                "The key is never included in this error."
+            ),
+        }
     except Exception as exc:
         return {
             "ok": False,
@@ -60,7 +73,7 @@ def check_url(url: str) -> dict[str, Any]:
             "verdict": "error",
             "malicious": False,
             "matches": [],
-            "error": str(exc),
+            "error": type(exc).__name__,
         }
 
     matches = body.get("matches") or []

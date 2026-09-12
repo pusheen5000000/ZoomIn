@@ -1,0 +1,4 @@
+axe-core v4.10.3 (Mozilla Public License 2.0)
+https://github.com/dequelabs/axe-core
+Full license: LICENSE-axe-core.txt in this folder.
+We use this file as a library injected into a Steel/Playwright page; we did not modify it.

@@ -14,6 +14,16 @@ from agent.steel_session import SteelSession
 from config import STEEL_API_BASE, STEEL_API_KEY, STEEL_TEST_URL
 
 
+def _extract_html(payload: dict[str, Any]) -> str:
+    content = payload.get("content") or {}
+    if not isinstance(content, dict):
+        return ""
+    for key in ("html", "cleanedHtml", "cleaned_html"):
+        if content.get(key):
+            return str(content[key])
+    return ""
+
+
 def _extract_text(payload: dict[str, Any]) -> str:
     content = payload.get("content") or {}
     if isinstance(content, str):
@@ -43,6 +53,7 @@ def scrape_url(
             "error": "STEEL_API_KEY is not set",
             "url": url,
             "text": "",
+            "html": "",
             "session_id": None,
             "viewer_url": None,
             "raw": None,
@@ -52,30 +63,27 @@ def scrape_url(
     session = session or SteelSession.create()
     should_release = owned if release_session is None else release_session
 
+    # Stateless scrape. Binding sessionId here 404s (“Session not found”) on
+    # Steel’s scrape API even when the browser session is still live.
     body: dict[str, Any] = {
         "url": url,
-        "format": ["markdown", "readability"],
-        "sessionId": session.id,
+        "format": ["markdown", "readability", "html"],
     }
     headers = {"steel-api-key": STEEL_API_KEY, "Content-Type": "application/json"}
 
     try:
         with httpx.Client(timeout=90.0) as client:
             response = client.post(f"{STEEL_API_BASE}/v1/scrape", headers=headers, json=body)
-            if response.status_code >= 400:
-                # Session-scoped scrape is not always supported; retry stateless.
-                body.pop("sessionId", None)
-                response = client.post(
-                    f"{STEEL_API_BASE}/v1/scrape", headers=headers, json=body
-                )
             response.raise_for_status()
             payload = response.json()
         text = _extract_text(payload)
+        html = _extract_html(payload)
         metadata = payload.get("metadata") if isinstance(payload, dict) else {}
         return {
             "ok": True,
             "url": url,
             "text": text,
+            "html": html,
             "title": (metadata or {}).get("title") if isinstance(metadata, dict) else None,
             "session_id": session.id,
             "viewer_url": session.viewer_url,
@@ -87,6 +95,7 @@ def scrape_url(
             "error": str(exc),
             "url": url,
             "text": "",
+            "html": "",
             "session_id": session.id,
             "viewer_url": session.viewer_url,
             "raw": None,

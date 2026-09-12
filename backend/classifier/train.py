@@ -1,10 +1,4 @@
-"""Train TF-IDF + LogisticRegression on Mathur et al. dark-pattern strings.
-
-Downloads the public CSV when online; falls back to the bundled sample.
-
-Run:
-    cd backend && python -m classifier.train
-"""
+"""Yamana e-commerce dark-pattern TSV (Apache-2.0). See data/NOTICE.txt."""
 
 from __future__ import annotations
 
@@ -20,34 +14,28 @@ from sklearn.pipeline import Pipeline
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 MODEL_DIR = Path(__file__).resolve().parent / "models"
-SAMPLE_CSV = DATA_DIR / "dark-patterns.sample.csv"
-FULL_CSV = DATA_DIR / "dark-patterns.csv"
+TSV_PATH = DATA_DIR / "yamana-ec-darkpattern.tsv"
 MODEL_PATH = MODEL_DIR / "dark_patterns.joblib"
 
-MATHUR_URL = (
-    "https://raw.githubusercontent.com/aruneshmathur/dark-patterns/"
-    "master/data/final-dark-patterns/dark-patterns.csv"
+YAMANA_URL = (
+    "https://raw.githubusercontent.com/yamanalab/ec-darkpattern/"
+    "master/dataset/dataset.tsv"
 )
 
 
 def load_dataset() -> pd.DataFrame:
-    path = FULL_CSV if FULL_CSV.exists() else SAMPLE_CSV
-    if not FULL_CSV.exists():
-        try:
-            import urllib.request
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if not TSV_PATH.exists():
+        import urllib.request
 
-            DATA_DIR.mkdir(parents=True, exist_ok=True)
-            urllib.request.urlretrieve(MATHUR_URL, FULL_CSV)
-            path = FULL_CSV
-            print(f"Downloaded Mathur dataset -> {FULL_CSV}")
-        except Exception as exc:
-            print(f"Download failed ({exc}); using bundled sample {SAMPLE_CSV}")
-            path = SAMPLE_CSV
+        urllib.request.urlretrieve(YAMANA_URL, TSV_PATH)
+        print(f"Downloaded Yamana dataset -> {TSV_PATH}")
 
-    df = pd.read_csv(path)
-    text_col = "Pattern String" if "Pattern String" in df.columns else df.columns[0]
-    label_col = "Pattern Category" if "Pattern Category" in df.columns else df.columns[2]
-    df = df[[text_col, label_col]].rename(columns={text_col: "text", label_col: "label"})
+    df = pd.read_csv(TSV_PATH, sep="\t")
+    # Columns: page_id, text, label (0/1), Pattern Category
+    text_col = "text" if "text" in df.columns else df.columns[1]
+    cat_col = "Pattern Category" if "Pattern Category" in df.columns else df.columns[-1]
+    df = df[[text_col, cat_col]].rename(columns={text_col: "text", cat_col: "label"})
     df["text"] = df["text"].astype(str).str.strip()
     df["label"] = df["label"].astype(str).str.strip()
     df = df[(df["text"].str.len() > 0) & (df["label"].str.len() > 0) & (df["label"] != "nan")]
@@ -90,14 +78,14 @@ def train(test_size: float = 0.2, random_state: int = 42) -> Path:
         stratify=stratify,
     )
     pipeline.fit(X_train, y_train)
-    y_pred = pipeline.predict(X_test)
-    print(classification_report(y_test, y_pred, zero_division=0))
+    print(classification_report(y_test, pipeline.predict(X_test), zero_division=0))
 
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(
         {
             "pipeline": pipeline,
             "labels": sorted(df["label"].unique().tolist()),
+            "source": "yamanalab/ec-darkpattern",
             "source_rows": int(len(df)),
         },
         MODEL_PATH,

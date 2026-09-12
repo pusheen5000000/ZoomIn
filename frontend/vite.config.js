@@ -8,6 +8,9 @@ export default defineConfig({
     proxy: {
       "/scan": "http://127.0.0.1:8000",
       "/health": "http://127.0.0.1:8000",
+      "/auth": "http://127.0.0.1:8000",
+      "/demo": "http://127.0.0.1:8000",
+      "/subscriptions": "http://127.0.0.1:8000",
     },
   },
 });

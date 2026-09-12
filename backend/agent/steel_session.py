@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from dataclasses import dataclass
 from typing import Any
 
 from steel import Steel
 
 from config import STEEL_API_KEY
+
+# Keep the cloud tab alive after we finish so “Watch Steel session” still works.
+# Immediate release is why Steel’s dashboard shows “Session not found”.
+VIEWER_KEEPALIVE_S = 120.0
 
 
 def steel_client() -> Steel:
@@ -46,8 +52,17 @@ class SteelSession:
         except Exception:
             pass
 
+    def release_later(self, delay_s: float = VIEWER_KEEPALIVE_S) -> None:
+        def _go() -> None:
+            time.sleep(max(0.0, delay_s))
+            self.release()
+
+        threading.Thread(target=_go, daemon=True, name="steel-release").start()
+
     @classmethod
-    def create(cls, api_timeout_ms: int = 180_000) -> "SteelSession":
+    def create(cls, timeout_ms: int = 180_000) -> "SteelSession":
         client = steel_client()
-        session = client.sessions.create(api_timeout=api_timeout_ms)
+        # Steel Python SDK: api_timeout -> JSON "timeout" (session lifetime in ms).
+        # The kwarg named timeout is the HTTP client timeout, not session length.
+        session = client.sessions.create(api_timeout=timeout_ms)
         return cls(client=client, session=session)

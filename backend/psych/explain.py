@@ -18,8 +18,11 @@ def load_mapping() -> dict[str, dict[str, str]]:
 def enrich(predictions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     mapping = load_mapping()
     enriched: list[dict[str, Any]] = []
+    skip = {"not dark pattern", "not_dark_pattern", "none"}
     for row in predictions:
         category = row.get("category")
+        if str(category).strip().lower() in skip:
+            continue
         info = mapping.get(str(category), {})
         enriched.append(
             {
