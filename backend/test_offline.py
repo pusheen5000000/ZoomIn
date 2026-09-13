@@ -22,7 +22,7 @@ def main() -> None:
     from nav.recipe_player import lookup_recipe, recipe_id_for
     from psych.explain import enrich
     from score.payment import payment_assessment
-    from subscriptions.extract import _parse_json
+    from subscriptions.extract import _parse_json, extract_subscription_image
     from subscriptions.guide import _base_steps, build_guide
     from subscriptions import store
     from detect.heuristics import scan_dom_and_text
@@ -112,6 +112,24 @@ def main() -> None:
     check("T7 keeps real http URL", parsed2["url"].startswith("https://"))
     check("T7 enrich drops Not Dark Pattern", enrich([{"category": "Not Dark Pattern", "confidence": 0.9}]) == [])
     check("T7 enrich keeps Urgency", len(enrich([{"category": "Urgency", "confidence": 0.9}])) == 1)
+
+    from unittest.mock import patch
+
+    with patch("subscriptions.extract.OpenAI") as mock_openai:
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content='{"name":"GymPlus","url":"https://example.com","cost":"$29","renews":"Monthly"}'))]
+        )
+        mock_openai.return_value = fake_client
+        import subscriptions.extract as extract_mod
+
+        extract_mod.ANTHROPIC_API_KEY = ""
+        extract_mod.OPENAI_API_KEY = "sk-test-openai"
+        extract_mod.OPENAI_BASE_URL = ""
+        extract_mod.OPENAI_MODEL = "gpt-4o-mini"
+
+        result = extract_subscription_image("aGVsbG8=", "image/png")
+        check("T7 uses OpenAI directly for screenshot OCR", result["ok"] is True and result["provider"] == "openai")
 
     # T8 in-memory jobs vanish conceptually
     job = store.new_job("t", item_n)

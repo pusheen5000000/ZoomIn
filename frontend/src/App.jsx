@@ -41,7 +41,6 @@ export default function App() {
   const [url, setUrl] = useState("https://example.com");
   const [skipAgent, setSkipAgent] = useState(true);
   const [scanId, setScanId] = useState(null);
-  const [traceOpen, setTraceOpen] = useState(false);
   const [job, setJob] = useState(null);
   const [error, setError] = useState("");
   const [loginUser, setLoginUser] = useState("judge@demo.local");
@@ -154,10 +153,6 @@ export default function App() {
   }
 
   const report = job?.report;
-  const traceText = useMemo(
-    () => (job?.trace || []).map(formatEvent).join("\n\n"),
-    [job]
-  );
 
   if (!authReady) {
     return (
@@ -455,37 +450,6 @@ export default function App() {
             ) : (
               <ReportCard report={report} />
             )}
-          </section>
-
-          <section className="panel">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <h2 style={{ margin: 0 }}>What we are checking {running ? "· in progress" : ""}</h2>
-              <button
-                type="button"
-                className="icon-btn on-light"
-                aria-expanded={traceOpen}
-                aria-label={traceOpen ? "Collapse" : "Expand"}
-                title={traceOpen ? "Collapse" : "Expand"}
-                onClick={() => setTraceOpen((open) => !open)}
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ transform: traceOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }}
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
-            </div>
-            {traceOpen ? (
-              <pre className="trace" style={{ marginTop: 16 }}>{traceText || "Waiting for a scan."}</pre>
-            ) : null}
           </section>
         </div>
         )}

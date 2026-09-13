@@ -244,6 +244,33 @@ export function Subscriptions({ onAuthLost, plain }) {
     }
   }
 
+  async function completeGuide() {
+    if (!guideFor) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/subscriptions/${guideFor.id}/guide/complete`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        onAuthLost();
+        return;
+      }
+      if (!res.ok) throw new Error(data.detail || "Could not complete the guide");
+      await load();
+      setGuide(null);
+      setGuideFor(null);
+      setChecked({});
+      setStatusFilter("cancelled");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function confirmCancel() {
     if (!pending) return;
     setBusy(true);
@@ -589,9 +616,13 @@ export function Subscriptions({ onAuthLost, plain }) {
                   <input
                     type="checkbox"
                     checked={Boolean(checked[step.id])}
-                    onChange={(event) =>
-                      setChecked((prev) => ({ ...prev, [step.id]: event.target.checked }))
-                    }
+                    onChange={(event) => {
+                      const nextChecked = { ...checked, [step.id]: event.target.checked };
+                      setChecked(nextChecked);
+                      const allStepsChecked = (guide.steps || []).length > 0 &&
+                        (guide.steps || []).every((guideStep) => nextChecked[guideStep.id]);
+                      if (allStepsChecked) completeGuide();
+                    }}
                   />
                   <strong>{step.title}</strong>
                 </label>

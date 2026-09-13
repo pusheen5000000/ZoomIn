@@ -193,6 +193,18 @@ async def guide_cancel(sub_id: str, request: Request) -> dict[str, Any]:
     return guide
 
 
+@router.post("/{sub_id}/guide/complete")
+def complete_guide(sub_id: str, request: Request) -> dict[str, Any]:
+    user = require_login(request)
+    item = store.get(user, sub_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Unknown subscription")
+    item["status"] = "cancelled"
+    item["last_outcome"] = "Cancelled via guide"
+    store.append_log(item, {"outcome": "Cancelled via guide", "summary": "All guide steps completed."})
+    return item
+
+
 @router.post("/{sub_id}/cancel")
 async def start_cancel(sub_id: str, body: CancelBody, request: Request) -> dict[str, str]:
     user = require_login(request)
