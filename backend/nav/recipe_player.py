@@ -143,7 +143,7 @@ async def start_recipe(
     if recipe_id == "gymplus":
         # Do not open Steel. Cloud Chrome often never shows the injected demo
         # (CSP, about:blank, viewer expiry). The fake page runs in our UI.
-        emit({"type": "status", "message": "GymPlus demo in this app (no Steel tab)"})
+        emit({"type": "status", "message": "GymPlus cancellation page is ready"})
         demo = LocalGymplusHeld()
         HELD[job_id] = demo
         return {
@@ -153,7 +153,7 @@ async def start_recipe(
             "demo": "gymplus",
             "needs_user_action": False,
             "user_action_reason": "last_click",
-            "user_action": "On the GymPlus demo below, click Cancel membership. Then confirm the last click here. This is not a real gym.",
+            "user_action": "Click Cancel membership below, then confirm the final step.",
             "step_id": "submit",
             "summary": "Needs your confirmation for the last click.",
             "session_id": None,
@@ -275,7 +275,7 @@ async def finish_recipe(job_id: str, on_event: OnEvent | None = None) -> dict[st
     resume = getattr(held, "resume", "wait_user")
     try:
         if resume == "gymplus_submit":
-            emit({"type": "step", "message": "You confirmed. GymPlus demo membership cancelled."})
+            emit({"type": "step", "message": "You confirmed. GymPlus membership cancelled."})
             return {
                 "ok": True,
                 "paused": False,

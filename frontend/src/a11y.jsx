@@ -54,7 +54,7 @@ export function A11yToggle() {
         className={enabled ? "mode-btn on" : "mode-btn"}
         onClick={() => setEnabled(true)}
       >
-        Plain mode
+        Accessible mode
       </button>
     </div>
   );

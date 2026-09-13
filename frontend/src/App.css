@@ -854,13 +854,12 @@ html[data-mode="plain"] h1 {
   color: var(--bg);
 }
 
-.gymplus-demo .meta {
-  color: #d8e2f2;
+.gymplus-complete {
+  color: var(--bg);
 }
 
-.gymplus-demo .warn-inline {
-  color: var(--accent);
-  font-weight: 700;
+.gymplus-demo .meta {
+  color: #d8e2f2;
 }
 
 .gymplus-demo button {

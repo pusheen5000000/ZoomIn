@@ -7,15 +7,27 @@ const POLL_MS = 900;
 
 function formatEvent(event) {
   const { type, message, ...rest } = event;
+  const text = message || "";
+  if (text.includes("STEEL_API_KEY") || text.toLowerCase().includes("api key")) {
+    return "We could not open this website right now. Please try again later, or use the guide below to cancel it yourself.";
+  }
+  if (text.toLowerCase().includes("captcha") || text.toLowerCase().includes("login")) {
+    return "This website needs you to sign in or complete a security check. We will not do that for you.";
+  }
+  if (type === "status" && text.toLowerCase().includes("opening")) return "Opening the website…";
+  if (type === "status" && text.toLowerCase().includes("loading")) return "Looking at the website…";
+  if (text.toLowerCase().includes("recipe") || text.toLowerCase().includes("browser")) {
+    return "Starting careful cancellation help…";
+  }
+  if (type === "complete") return text || "Website check finished.";
+  if (type === "error") return "We could not finish checking this website. Please try again.";
   if (type === "agent_step") {
     const step = rest.step || {};
-    return `#${step.index ?? "?"} ${step.action || "step"} ${step.url || ""}\n${step.extracted || step.thought || step.error || ""}`;
+    return step.extracted || "Checking the next part of the website…";
   }
-  const extras = Object.keys(rest)
-    .filter((key) => !["at", "step", "patterns"].includes(key))
-    .map((key) => `${key}=${JSON.stringify(rest[key])}`)
-    .join(" ");
-  return `[${type}] ${message || ""} ${extras}`.trim();
+  if (type === "safety") return "Checking whether this website has been reported as unsafe…";
+  if (type === "classifier") return "Looking for confusing or pressuring wording…";
+  return text || "Checking the website…";
 }
 
 async function api(path, options = {}) {
@@ -156,25 +168,6 @@ export default function App() {
     }
   }
 
-  async function runSteelLogin() {
-    setDemoBusy(true);
-    setError("");
-    setDemoLogin(null);
-    try {
-      const res = await api("/demo/login", { method: "POST" });
-      const data = await res.json();
-      if (res.status === 401) {
-        setUser(null);
-        return;
-      }
-      setDemoLogin(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setDemoBusy(false);
-    }
-  }
-
   const report = job?.report;
   const traceText = useMemo(
     () => (job?.trace || []).map(formatEvent).join("\n\n"),
@@ -286,8 +279,7 @@ export default function App() {
           <div className="home-grid">
             <section className="hero">
               <div className="hero-copy">
-                <p className="hero-eyebrow">Your money, watched</p>
-                <h1>Know what you pay for. Leave when you want.</h1>
+                <h1>We zoom in so you don’t have to.</h1>
                 <p>
                   ZoomIn keeps a list of every subscription you have, and
                   checks a website's wording before you type your card into
@@ -328,10 +320,10 @@ export default function App() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
           <h1>Scan a site</h1>
           <p className="lede">
-            Paste a URL. We scrape it and rate <strong>Payment safety</strong> — whether
-            this snapshot looks like a risky place to type a card. That uses our
-            wording model (Yamana data, Mathur 2019 categories) plus Safe Browsing.
-            It is not an accessibility score.
+            Enter a website address and we will look for signs that could make
+            paying or cancelling confusing. We will explain what we find in
+            simple language. This is helpful information, not a guarantee that
+            a website is safe.
           </p>
         </div>
 
@@ -353,27 +345,10 @@ export default function App() {
             checked={skipAgent}
             onChange={(e) => setSkipAgent(e.target.checked)}
           />
-          Skip old Browser Use path on scans (Cancel for me uses Playwright recipes)
+          Use the slower, more careful website check
         </label>
 
-        <p>
-          <button type="button" className="secondary" onClick={runSteelLogin} disabled={demoBusy}>
-            {demoBusy ? "Running Steel login…" : "Run Steel login demo"}
-          </button>
-        </p>
-        {demoLogin ? (
-          <p className={demoLogin.ok ? "ok-msg" : "error"} role="status">
-            {demoLogin.summary} {demoLogin.error || ""}
-            {demoLogin.viewer_url ? (
-              <>
-                {" "}
-                <a href={demoLogin.viewer_url} target="_blank" rel="noreferrer">
-                  Watch Steel session (about 2 minutes)
-                </a>
-              </>
-            ) : null}
-          </p>
-        ) : null}
+        <p className="meta">We never ask you to share your password or security code.</p>
 
         {error ? <p className="error" role="alert">{error}</p> : null}
 
@@ -384,7 +359,7 @@ export default function App() {
         ) : (
         <div className="grid">
           <section className="panel outline">
-            <h2>Payment safety {running ? "· checking…" : ""}</h2>
+            <h2>Is this website safe to pay on? {running ? "· checking…" : ""}</h2>
             {running ? (
               <div className="status-row">
                 <span className="pulse-dot" />
@@ -399,7 +374,7 @@ export default function App() {
           </section>
 
           <section className="panel">
-            <h2>Live scan trace {running ? "· in progress" : ""}</h2>
+            <h2>What we are checking {running ? "· in progress" : ""}</h2>
             <pre className="trace">{traceText || "Waiting for a scan."}</pre>
           </section>
         </div>
@@ -409,7 +384,7 @@ export default function App() {
       </main>
 
       <footer className="site-footer">
-        <p className="foot-note">ZoomIn never bypasses a login, a CAPTCHA, or a final confirmation.</p>
+        <p className="foot-note">ZoomIn never bypasses a sign-in, a security check, or your final confirmation.</p>
         <span className="foot-links">Help · Privacy · Contact a human</span>
       </footer>
     </div>
@@ -423,11 +398,11 @@ function ReportCard({ report }) {
   return (
     <div>
       <p>
-        <span className={`badge ${pay.band_id || "unknown"}`}>{pay.band || "Payment safety unknown"}</span>{" "}
+        <span className={`badge ${pay.band_id || "unknown"}`}>{pay.band || "Website safety is not known yet"}</span>{" "}
         <span className="meta">{report.url}</span>
       </p>
       <p className={scrape.ok ? "ok-msg" : "meta"}>
-        Steel scrape: {scrape.ok ? `ok${scrape.title ? ` (${scrape.title})` : ""}` : scrape.error || "not run"}
+        Website reading: {scrape.ok ? `finished${scrape.title ? ` (${scrape.title})` : ""}` : "not available right now"}
       </p>
       {pay.band ? (
         <div className={`score-card ${pay.band_id || "unknown"}`}>
@@ -447,7 +422,7 @@ function ReportCard({ report }) {
       ) : null}
       {safety.verdict === "error" ? (
         <p className="meta">
-          Google Safe Browsing did not run. Payment Safety still uses the page wording.
+          We could not complete the website safety check, but the wording review is still available.
         </p>
       ) : null}
 
