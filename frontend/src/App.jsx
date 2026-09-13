@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { A11yToggle } from "./a11y.jsx";
+import { A11yToggle, useA11y } from "./a11y.jsx";
 import { Subscriptions } from "./Subscriptions.jsx";
 import "./App.css";
 
@@ -41,6 +41,7 @@ export default function App() {
   const [url, setUrl] = useState("https://example.com");
   const [skipAgent, setSkipAgent] = useState(true);
   const [scanId, setScanId] = useState(null);
+  const [traceOpen, setTraceOpen] = useState(false);
   const [job, setJob] = useState(null);
   const [error, setError] = useState("");
   const [loginUser, setLoginUser] = useState("judge@demo.local");
@@ -48,8 +49,7 @@ export default function App() {
   const [demoLogin, setDemoLogin] = useState(null);
   const [demoBusy, setDemoBusy] = useState(false);
   const [tab, setTab] = useState("home");
-  const [subsCount, setSubsCount] = useState(null);
-  const [scansRun, setScansRun] = useState(0);
+  const { enabled: plainMode } = useA11y();
   const running = job && (job.status === "queued" || job.status === "running");
 
   useEffect(() => {
@@ -67,20 +67,6 @@ export default function App() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (!user) return undefined;
-    let cancelled = false;
-    api("/subscriptions/")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && data) setSubsCount((data.subscriptions || []).length);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [user, tab]);
 
   useEffect(() => {
     if (!scanId) return undefined;
@@ -141,7 +127,7 @@ export default function App() {
   }
 
   async function runScan(event) {
-    event.preventDefault();
+    event?.preventDefault?.();
     setError("");
     setJob({ status: "queued", trace: [], url });
     try {
@@ -161,7 +147,6 @@ export default function App() {
       if (!res.ok) throw new Error(`Scan failed (${res.status})`);
       const data = await res.json();
       setScanId(data.scan_id);
-      setScansRun((n) => n + 1);
     } catch (err) {
       setError(err.message);
       setJob(null);
@@ -245,6 +230,98 @@ export default function App() {
       </header>
 
       <main className="shell">
+        {plainMode ? (
+          tab === "home" ? (
+            <div className="plain-home">
+              <h1>What would you like to do?</h1>
+              <button type="button" className="plain-choice-card" onClick={() => setTab("subs")}>
+                <span className="plain-choice-title">See my subscriptions</span>
+                <span className="plain-choice-sub">The things you pay for every month.</span>
+              </button>
+              <button type="button" className="plain-choice-card" onClick={() => setTab("scan")}>
+                <span className="plain-choice-title">Check a website</span>
+                <span className="plain-choice-sub">Is it safe to type my card here?</span>
+              </button>
+              <p className="plain-note">
+                Nothing is cancelled and nothing is paid without you pressing the button yourself.
+              </p>
+            </div>
+          ) : (
+            <>
+              <nav className="tabs" role="tablist">
+                <button
+                  type="button"
+                  className="tab back-btn"
+                  aria-label="Back to home"
+                  title="Back to home"
+                  onClick={() => setTab("home")}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "subs"}
+                  className={tab === "subs" ? "tab on" : "tab"}
+                  onClick={() => setTab("subs")}
+                >
+                  My subscriptions
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "scan"}
+                  className={tab === "scan" ? "tab on" : "tab"}
+                  onClick={() => setTab("scan")}
+                >
+                  Check a website
+                </button>
+              </nav>
+
+              {tab === "subs" ? (
+                <Subscriptions plain onAuthLost={() => setUser(null)} />
+              ) : null}
+
+              {tab === "scan" ? (
+                <>
+                  <h1>Check a website</h1>
+                  <label className="field" htmlFor="plain-scan-url" style={{ marginBottom: 20, fontSize: 19 }}>
+                    Type or paste the web address
+                    <input
+                      id="plain-scan-url"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder="https://example.com"
+                      type="url"
+                      required
+                    />
+                  </label>
+                  <button type="button" className="btn-accent" onClick={() => runScan()} disabled={Boolean(running)}>
+                    {running ? "Checking…" : "Check this website"}
+                  </button>
+
+                  {error ? <p className="error" role="alert" style={{ marginTop: 20 }}>{error}</p> : null}
+
+                  {running ? (
+                    <div className="status-row" style={{ marginTop: 20 }}>
+                      <span className="pulse-dot" />
+                      <span style={{ fontWeight: 600 }}>Checking. This takes a few seconds.</span>
+                    </div>
+                  ) : null}
+
+                  {report ? (
+                    <div style={{ marginTop: 20 }}>
+                      <ReportCard report={report} plain />
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </>
+          )
+        ) : (
+          <>
         <nav className="tabs" role="tablist">
           <button
             type="button"
@@ -281,9 +358,10 @@ export default function App() {
               <div className="hero-copy">
                 <h1>We zoom in so you don’t have to.</h1>
                 <p>
-                  ZoomIn keeps a list of every subscription you have, and
-                  checks a website's wording before you type your card into
-                  it. It never clicks a final Cancel or Pay button for you.
+                  Zoom In keeps all your subscriptions in one place, checks
+                  for potential risks before you pay, and guides you to
+                  hard-to-find cancellation controls whenever you're ready to
+                  cancel.
                 </p>
               </div>
               <div className="hero-mark">
@@ -291,23 +369,31 @@ export default function App() {
               </div>
             </section>
 
-            <section className="month-panel">
-              <div className="month-panel-head">
-                <h2>At a glance</h2>
-              </div>
-              <div className="chip-row">
-                <span className="chip">
-                  {subsCount === null
-                    ? "Loading subscriptions…"
-                    : subsCount === 0
-                      ? "No subscriptions tracked yet"
-                      : `${subsCount} subscription${subsCount === 1 ? "" : "s"} tracked`}
-                </span>
-                <span className="chip">
-                  {scansRun === 0 ? "No sites scanned yet" : `${scansRun} site${scansRun === 1 ? "" : "s"} scanned this session`}
-                </span>
-              </div>
-            </section>
+            <div className="feature-grid">
+              <section className="feature-card">
+                <h2>Cancel with confidence</h2>
+                <p>
+                  Keep every subscription in one list. When you're ready to
+                  cancel one, we give you a step-by-step guide, or hands-on
+                  help finding the cancel button — you always press the last
+                  click yourself.
+                </p>
+                <button type="button" className="btn-secondary" onClick={() => setTab("subs")}>
+                  My subscriptions
+                </button>
+              </section>
+              <section className="feature-card">
+                <h2>Check before you pay</h2>
+                <p>
+                  Paste a website address before you type your card in. We
+                  check its payment safety and flag wording that makes
+                  cancelling later look difficult.
+                </p>
+                <button type="button" className="btn-secondary" onClick={() => setTab("scan")}>
+                  Scan a site
+                </button>
+              </section>
+            </div>
           </div>
         ) : null}
 
@@ -320,10 +406,8 @@ export default function App() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
           <h1>Scan a site</h1>
           <p className="lede">
-            Enter a website address and we will look for signs that could make
-            paying or cancelling confusing. We will explain what we find in
-            simple language. This is helpful information, not a guarantee that
-            a website is safe.
+            Enter a website address to check the payment security &amp; hardness
+            to cancel of it.
           </p>
         </div>
 
@@ -374,13 +458,41 @@ export default function App() {
           </section>
 
           <section className="panel">
-            <h2>What we are checking {running ? "· in progress" : ""}</h2>
-            <pre className="trace">{traceText || "Waiting for a scan."}</pre>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <h2 style={{ margin: 0 }}>What we are checking {running ? "· in progress" : ""}</h2>
+              <button
+                type="button"
+                className="icon-btn on-light"
+                aria-expanded={traceOpen}
+                aria-label={traceOpen ? "Collapse" : "Expand"}
+                title={traceOpen ? "Collapse" : "Expand"}
+                onClick={() => setTraceOpen((open) => !open)}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ transform: traceOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+            </div>
+            {traceOpen ? (
+              <pre className="trace" style={{ marginTop: 16 }}>{traceText || "Waiting for a scan."}</pre>
+            ) : null}
           </section>
         </div>
         )}
         </>
         ) : null}
+          </>
+        )}
       </main>
 
       <footer className="site-footer">
@@ -391,10 +503,33 @@ export default function App() {
   );
 }
 
-function ReportCard({ report }) {
+function ReportCard({ report, plain }) {
   const safety = report.safety || {};
   const pay = report.payment_safety || {};
   const scrape = report.scrape || {};
+
+  if (plain) {
+    return (
+      <div>
+        <p style={{ margin: 0 }}>
+          <span
+            className={`badge ${pay.band_id || "unknown"}`}
+            style={{ fontSize: 30, fontWeight: 700, padding: "20px 28px", borderRadius: 16, borderWidth: 3 }}
+          >
+            {pay.band || "Website safety is not known yet"}
+          </span>
+        </p>
+        {(pay.reasons || []).length ? (
+          <ul className="score-breakdown" style={{ fontSize: 22, marginTop: 20 }}>
+            {pay.reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div>
       <p>
@@ -407,17 +542,13 @@ function ReportCard({ report }) {
       {pay.band ? (
         <div className={`score-card ${pay.band_id || "unknown"}`}>
           <p className="score-band">{pay.band}</p>
-          <p className="meta">{pay.disclaimer}</p>
           {(pay.reasons || []).length ? (
             <ul className="score-breakdown">
               {pay.reasons.map((reason) => (
                 <li key={reason}>{reason}</li>
               ))}
             </ul>
-          ) : (
-            <p className="meta">No extra payment-trap wording stood out on this snapshot.</p>
-          )}
-          <p className="meta">{pay.source}</p>
+          ) : null}
         </div>
       ) : null}
       {safety.verdict === "error" ? (

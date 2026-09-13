@@ -55,17 +55,17 @@ function GymPlusDemo({ stage, cancelled, onStartCancel, onKeep, onLastClick, las
   );
 }
 
-function subRisk(item) {
+function subRisk(item, plain) {
   if (item.status === "cancelled") {
     return { label: "Cancelled", level: "clear" };
   }
   if (item.recipe_id === "gymplus") {
-    return { label: "Needs extra help to cancel", level: "severe" };
+    return { label: plain ? "Hard to cancel" : "Needs extra help to cancel", level: "severe" };
   }
   return { label: "Not checked yet", level: "caution" };
 }
 
-export function Subscriptions({ onAuthLost }) {
+export function Subscriptions({ onAuthLost, plain }) {
   const [items, setItems] = useState([]);
   const [name, setName] = useState("GymPlus");
   const [url, setUrl] = useState("https://example.com");
@@ -83,6 +83,7 @@ export function Subscriptions({ onAuthLost }) {
   const [guideFor, setGuideFor] = useState(null);
   const [checked, setChecked] = useState({});
   const [gymStage, setGymStage] = useState("home");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   async function load() {
     const res = await fetch("/subscriptions/", { credentials: "include" });
@@ -322,13 +323,47 @@ export function Subscriptions({ onAuthLost }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <h1>My subscriptions</h1>
-        <p className="lede">
-          Keep your subscriptions in one list. Add one by typing or upload a
-          bill or email. Check the details, then choose a cancellation guide or
-          assisted help.
-        </p>
+        {plain ? null : (
+          <p className="lede">
+            Take a screenshot or manually enter the subscription info to track
+            them all in one list.
+          </p>
+        )}
       </div>
 
+      {plain ? null : (
+      <div className="tabs" role="tablist" aria-label="Filter by status">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={statusFilter === "all"}
+          className={statusFilter === "all" ? "tab on" : "tab"}
+          onClick={() => setStatusFilter("all")}
+        >
+          All
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={statusFilter === "active"}
+          className={statusFilter === "active" ? "tab on" : "tab"}
+          onClick={() => setStatusFilter("active")}
+        >
+          In use
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={statusFilter === "cancelled"}
+          className={statusFilter === "cancelled" ? "tab on" : "tab"}
+          onClick={() => setStatusFilter("cancelled")}
+        >
+          Cancelled
+        </button>
+      </div>
+      )}
+
+      {statusFilter === "all" ? (
       <section
         className="upload-card"
         onPaste={(event) => {
@@ -342,13 +377,13 @@ export function Subscriptions({ onAuthLost }) {
         }}
       >
         <div className="upload-card-head">
-          <h2>Add from a screenshot</h2>
-          <span className="pill-note">Nothing is saved until you press Add</span>
+          <h2>{plain ? "Add one from a photo" : "Add from a screenshot"}</h2>
+          {plain ? null : <span className="pill-note">Nothing is saved until you press Add</span>}
         </div>
         <p className="meta" style={{ fontSize: 18 }}>
-          Take a photo or screenshot of a receipt email, bank charge, or bill.
-          We will find the name, price, renewal date, and website, then show you
-          the details so you can check them before saving.
+          {plain
+            ? "Send us a photo or screenshot of the bill. We read it and fill in the details for you to check."
+            : "Upload a photo or screenshot of a receipt email, bank charge, or bill."}
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center" }}>
           <label className="file-picker">
@@ -357,7 +392,7 @@ export function Subscriptions({ onAuthLost }) {
               <path d="M6.5 9.5L12 4l5.5 5.5" />
               <path d="M4 17v2.5h16V17" />
             </svg>
-            Choose a screenshot
+            {plain ? "Choose a photo" : "Choose a screenshot"}
             <input
               type="file"
               accept="image/png,image/jpeg,image/gif,image/webp"
@@ -425,65 +460,101 @@ export function Subscriptions({ onAuthLost }) {
           </div>
         </form>
       </section>
+      ) : null}
 
       {error ? <p className="error" role="alert">{error}</p> : null}
 
       {items.length === 0 ? (
         <p className="meta">No subscriptions yet. Add one above.</p>
       ) : (
-        items.map((item) => {
-          const risk = subRisk(item);
+        (() => {
+          const filteredItems = items.filter((item) =>
+            statusFilter === "all"
+              ? true
+              : statusFilter === "cancelled"
+                ? item.status === "cancelled"
+                : item.status !== "cancelled"
+          );
+          if (filteredItems.length === 0) {
+            return (
+              <p className="meta">
+                {statusFilter === "cancelled" ? "No cancelled subscriptions." : "No subscriptions in use."}
+              </p>
+            );
+          }
+          return filteredItems.map((item) => {
+          const risk = subRisk(item, plain);
           return (
           <article className="sub-card" key={item.id}>
             <div className="sub-card-main">
               <div className="sub-card-title">
                 <h2>{item.name}</h2>
-                <span className={`badge ${risk.level}`}>{risk.label}</span>
+                {plain ? null : <span className={`badge ${risk.level}`}>{risk.label}</span>}
               </div>
-              <p className="meta" style={{ fontSize: 17 }}>
-                {item.cost || "cost unknown"}
-                {item.renews ? ` · renews ${item.renews}` : ""}
-                {` · ${item.status}`}
-              </p>
-              {item.recipe_id !== "gymplus" ? (
+              {plain ? (
+                <>
+                  <p className="meta" style={{ fontSize: 22, fontWeight: 700, color: "var(--text)" }}>{item.cost || "Cost unknown"}</p>
+                  {item.renews ? <p className="meta" style={{ fontSize: 22, fontWeight: 700, color: "var(--text)" }}>Next payment {item.renews}</p> : null}
+                  <span className={`badge ${risk.level}`} style={{ alignSelf: "flex-start", fontSize: 18, fontWeight: 700, padding: "10px 16px" }}>{risk.label}</span>
+                </>
+              ) : (
+                <p className="meta" style={{ fontSize: 17 }}>
+                  {item.cost || "cost unknown"}
+                  {item.renews ? ` · renews ${item.renews}` : ""}
+                  {` · ${item.status}`}
+                </p>
+              )}
+              {!plain && item.recipe_id !== "gymplus" ? (
                 <p className="meta">The guide gives simple steps. Assisted help pauses when you need to take over.</p>
               ) : null}
-              {item.last_outcome ? <p>{item.last_outcome === "Couldn't complete" ? "The last attempt could not be completed." : item.last_outcome}</p> : null}
+              {item.last_outcome ? (
+                <p style={plain ? { fontSize: 22, fontWeight: 700 } : undefined}>
+                  {item.last_outcome === "Couldn't complete" ? "The last attempt could not be completed." : item.last_outcome}
+                </p>
+              ) : null}
             </div>
             <div className="sub-card-actions">
-              <button
-                type="button"
-                className={guideFor?.id === item.id && guide ? "btn-primary active" : "btn-primary"}
-                onClick={() => openGuide(item)}
-                disabled={busy}
-              >
-                {busy && guideFor?.id === item.id ? "Opening guide…" : guideFor?.id === item.id && guide ? "Hide steps" : "Cancellation guide"}
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setPending(item)}
-                disabled={item.status === "cancelled" || busy}
-              >
-                Cancel
-              </button>
+              {item.status === "cancelled" ? (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-secondary"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    textDecoration: "none",
+                  }}
+                >
+                  Visit website
+                </a>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className={guideFor?.id === item.id && guide ? "btn-primary active" : "btn-primary"}
+                    onClick={() => openGuide(item)}
+                    disabled={busy}
+                  >
+                    {busy && guideFor?.id === item.id ? "Opening guide…" : guideFor?.id === item.id && guide ? "Hide steps" : "Cancellation guide"}
+                  </button>
+                  <span className="or-divider">or</span>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => setPending(item)}
+                    disabled={busy}
+                  >
+                    Assisted help to cancel
+                  </button>
+                </>
+              )}
             </div>
-            {(item.log || []).length ? (
-              <ul className="friction">
-                {item.log.slice(-1).reverse().map((entry, index) => (
-                  <li key={index}>
-                    {entry.outcome === "Couldn't complete"
-                      ? "The previous attempt could not be completed. Try the guide instead."
-                      : entry.outcome === "Cancel started"
-                        ? "Cancellation help was started."
-                        : entry.outcome}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
           </article>
           );
-        })
+          });
+        })()
       )}
 
       {guide ? (
@@ -564,11 +635,29 @@ export function Subscriptions({ onAuthLost }) {
 
       {job ? (
         <section className="panel" style={{ marginTop: 16 }}>
-          <h2>
-            Cancellation help{" "}
-            {job.status === "running" || job.status === "queued" ? "· in progress" : ""}
-            {job.status === "needs_confirm" ? "· waiting for you" : ""}
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <h2 style={{ margin: 0 }}>
+              Cancellation help{" "}
+              {job.status === "running" || job.status === "queued" ? "· in progress" : ""}
+              {job.status === "needs_confirm" ? "· waiting for you" : ""}
+            </h2>
+            {job.status === "complete" ? (
+              <button
+                type="button"
+                className="icon-btn on-light"
+                aria-label="Close this"
+                title="Close this"
+                onClick={() => {
+                  setJob(null);
+                  setJobId(null);
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
           {banner ? (
             <p className={bannerOk ? "ok-msg" : "error"}>{banner}</p>
           ) : null}
