@@ -72,7 +72,7 @@ Same values: `backend/.env.example` (`DEMO_USER` / `DEMO_PASSWORD`). Anyone with
 
 1. Sign in. Confirm **My subscriptions** is the first tab. Optional: toggle Accessibility-Friendly — only *our* chrome changes.
 2. Add **GymPlus** + `https://example.com`. Click **Guide me** — checklist only.
-3. **Assisted help to cancel* on GymPlus → confirm → click **Cancel membership** on the fake page → **Yes, cancel now**. Expect *Membership cancelled. You will not be billed again.* This is **not** a real gym and **not** Steel.
+3. **Semi-assisted cancel** on GymPlus → confirm → click **Cancel membership** on the fake page → **Yes, cancel now**. Expect *Membership cancelled. You will not be billed again.* This is **not** a real gym and **not** Steel.
 4. Add **Netflix** + `https://www.netflix.com`. **Guide me** — still a checklist; we do not scrape Netflix here.
 5. Optional: Netflix **Semi-assisted cancel**. Steel opens the live site and should **pause** (captcha / login). We must **not** say it cancelled. Do not type a real Netflix password into Steel.
 6. **Scan a site** → `https://example.com`. Expect **Payment Safety** (Steel scrape). Safe Browsing may show `error`; that is not a Steel failure if scrape is ok.
@@ -303,5 +303,3 @@ Vite proxies these from `:5173`. Cookie = signed-in demo user.
 | Safe Browsing          | `backend/safety/check.py`                                                                |
 | Subscriptions          | `backend/subscriptions/`, `frontend/src/Subscriptions.jsx`                               |
 | UI                     | `frontend/src/App.jsx`, `a11y.jsx`, `App.css`                                            |
-
-
