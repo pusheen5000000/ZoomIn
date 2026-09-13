@@ -80,7 +80,7 @@ Jobs live **in memory**. Restarting uvicorn wipes scans and subscription rows.
 ---
 
 
-## Testing Demo (for the judge)
+## Demo (for the judge)
 
 
 
