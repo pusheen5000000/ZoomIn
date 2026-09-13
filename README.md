@@ -1,23 +1,94 @@
-# Senior Safety Web Agent
+# ZoomIn
 
-Hackathon app with two tabs. **My subscriptions** is first: add by hand or screenshot, then optional GymPlus cancel recipe. **Scan a site** rates **Payment Safety** (is this snapshot a risky place to type a card) — not an accessibility-for-seniors score.
+Hackathon app for **older adults and the people helping them**: list subscriptions, get a plain-language cancel checklist, try a **fake** GymPlus cancel in our UI, and **scan a public page** for payment-related dark patterns.
 
-This file is the honest inventory: what we built, what we did not, licenses, demo secrets that are *supposed* to be public, and what is still broken.
+We use **Steel.dev cloud Chrome** to scrape and (on live URLs) to drive a real browser with Playwright. We do **not** use an LLM to click. We do **not** claim we cancelled Netflix.
 
-## Demo login (judges and teammates)
+---
 
-This is a **throwaway account for our app only**. It is not a real email, bank, Google, Groq, or Steel login.
+## Contents
 
-| | |
-| --- | --- |
-| **Username** | `judge@demo.local` |
-| **Password** | `SeniorSafety2026` |
+1. [What we built](#what-we-built)
+2. [Judge demo (start here)](#judge-demo-start-here)
+3. [How to run](#how-to-run)
+4. [How it works](#how-it-works)
+5. [Tests](#tests)
+6. [Honest limits](#honest-limits)
+7. [Licenses](#licenses)
+8. [References](#references)
+9. [API](#api)
+10. [Repo map](#repo-map)
 
-Same values live in `backend/.env.example` as `DEMO_USER` / `DEMO_PASSWORD`. Anyone who can open this repo can sign in to a local copy. That is intentional for the hackathon.
+---
 
-**API keys are not in this README and must not be committed.** Put `STEEL_API_KEY`, `SAFE_BROWSING_API_KEY`, `OPENAI_API_KEY` (Groq `gsk_…` is fine for screenshot vision), and optional `ANTHROPIC_API_KEY` (Claude, used first if set) only in `backend/.env`.
 
-After you sign in, a session cookie (`sameSite=lax`) keeps you signed in until you sign out or the cookie expires (`SESSION_MAX_AGE`). The secret that signs the cookie is `SESSION_SECRET` in `.env`. The example value is a **dev default**, not production-grade.
+
+## What we built
+
+Two tabs. **My subscriptions** is first.
+
+
+| Feature                | What it does                                                                                  | Steel?                           |
+| ---------------------- | --------------------------------------------------------------------------------------------- | -------------------------------- |
+| Sign in                | Throwaway app account (below). Cookie session.                                                | No                               |
+| Add subscription       | Type name + URL, or upload a bill screenshot                                                  | No (Groq/Claude reads the image) |
+| **Guide me**           | Checklist on **your** device. We do not open Netflix.                                         | No                               |
+| **GymPlus cancel**     | Fake membership page **in this app**. Confirm last click.                                     | No                               |
+| **Live cancel**        | Opens the real URL in Steel Chrome, tries Account/Cancel, **pauses** on captcha / login / 2FA | Yes                              |
+| **Scan a site**        | Steel scrape → wording classifier + DOM heuristics + Safe Browsing → **Payment Safety**       | Yes                              |
+| Accessibility-Friendly | Larger type / our screens only. Does not restyle Netflix.                                     | No                               |
+| Steel login demo       | Injects a fake login form *inside* cloud Chrome and types the demo creds                      | Yes                              |
+
+
+**Payment Safety** is three bands: no obvious traps on this snapshot / be careful / do not enter a card. It is **not** WCAG, **not** a 0–100 “senior score,” and **not** a bank guarantee.
+
+**Detection** is a scikit-learn classifier trained on the **Yamana** TSV, plus BeautifulSoup/regex heuristics. Mathur 2019 is the **taxonomy we cite**; we did not copy their GitHub dump. Groq is **not** the dark-pattern judge.
+
+---
+
+
+
+## Judge demo (start here)
+
+
+
+### Login (our app only)
+
+This is **not** Netflix, Google, Groq, or Steel.
+
+
+|          |                                                                                   |
+| -------- | --------------------------------------------------------------------------------- |
+| URL      | **[http://localhost:5173](http://localhost:5173)** (use this origin, not `:8000`) |
+| Username | `judge@demo.local`                                                                |
+| Password | `SeniorSafety2026`                                                                |
+
+
+Same values: `backend/.env.example` (`DEMO_USER` / `DEMO_PASSWORD`). Anyone with the repo can sign in locally. That is intentional.
+
+**API keys stay in gitignored** `backend/.env`**.** Never paste them into the UI or this file.
+
+### Five-minute script
+
+1. Sign in. Confirm **My subscriptions** is the first tab. Optional: toggle Accessibility-Friendly — only *our* chrome changes.
+2. Add **GymPlus** + `https://example.com`. Click **Guide me** — checklist only.
+3. **Semi-assisted cancel** on GymPlus → confirm → click **Cancel membership** on the fake page → **Yes, cancel now**. Expect *Membership cancelled. You will not be billed again.* This is **not** a real gym and **not** Steel.
+4. Add **Netflix** + `https://www.netflix.com`. **Guide me** — still a checklist; we do not scrape Netflix here.
+5. Optional: Netflix **Semi-assisted cancel**. Steel opens the live site and should **pause** (captcha / login). We must **not** say it cancelled. Do not type a real Netflix password into Steel.
+6. **Scan a site** → `https://example.com`. Expect **Payment Safety** (Steel scrape). Safe Browsing may show `error`; that is not a Steel failure if scrape is ok.
+7. Optional: upload a **fake** receipt → **Read screenshot into the form** → check fields → **Add subscription**. We must not invent a cancel URL that was not in the picture.
+
+
+
+### What must never happen in a demo
+
+- Browser Use picking clicks on a live bill
+- API keys in the report
+- “We cancelled Netflix” without your confirm **and** a real last click you approved (we do not complete that on Netflix)
+
+---
+
+
 
 ## How to run
 
@@ -26,202 +97,211 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m playwright install chromium   # local Playwright bits; Steel still hosts cloud Chrome
-cp .env.example .env                    # then fill real API keys
-python -m classifier.train              # trains on Yamana TSV only
-
-cd ../frontend
-npm install
+python -m playwright install chromium   # driver only; Chrome still runs on Steel
+cp .env.example .env                    # fill STEEL_API_KEY, etc.
+python -m classifier.train              # Yamana TSV only
+cd ../frontend && npm install
 ```
 
-Terminal 1:
+`.env` (not committed): `STEEL_API_KEY`, `SAFE_BROWSING_API_KEY`, `OPENAI_API_KEY` (Groq `gsk_…` is fine), optional `ANTHROPIC_API_KEY`, `SESSION_SECRET` (dev default is not production-grade).
+
+**Terminal 1 — API**
 
 ```bash
 cd backend && source .venv/bin/activate && uvicorn main:app --reload --port 8000
 ```
 
-Terminal 2:
+**Terminal 2 — UI**
 
 ```bash
 cd frontend && npm run dev
 ```
 
-Open **http://localhost:5173** (Vite proxies `/auth`, `/scan`, `/demo`, `/health` to port 8000). Signing in against the API directly at `:8000` will not set the cookie the UI expects unless you use the proxied origin.
+Open **[http://localhost:5173](http://localhost:5173)**. Vite proxies `/auth`, `/scan`, `/demo`, `/health`, `/subscriptions` to port 8000. Logging in on `:8000` directly will not set the cookie the UI expects.
 
-## What a scan does
+Jobs live **in memory**. Restarting uvicorn wipes scans and subscription rows.
 
-1. You must be signed in.
-2. `POST /scan` with `{ "url", "skip_agent": true, "include_a11y": false }` by default.
-3. **Without** accessibility scan: Steel `/v1/scrape` pulls HTML/text.
-4. **With** “Include accessibility scan”: a Steel Chrome tab + Playwright CDP loads the page, injects vendored **axe-core**, maps a few rules into senior language, and reuses that HTML/text. If that fails, we fall back to `/v1/scrape`.
-5. BeautifulSoup heuristics + a scikit-learn model (Yamana labels) produce **senior flags** and wording categories.
-6. Google Safe Browsing is queried if a key is set.
-7. **Senior Safety Score** is 0–100, **higher = safer** (decision S1). Bands: 80+ easier for seniors, 50–79 use with care, below 50 easy to get stuck or miss fees.
-8. The old **Browser Use** cancel agent still exists in code. The UI skips it by default. Do not turn it on unless you know it will spend LLM + Steel time.
+---
 
-`GET /scan/{id}` returns the job, live `trace[]`, and `report` when complete.
 
-Optional **Run Steel login demo** (`POST /demo/login`) injects a fake HTML login page *inside Steel* and types the demo credentials. Steel cloud Chrome **cannot see `localhost`**, so this is not “log into our Vite app from the cloud.”
 
-## UI modes
+## How it works
 
-**Standard** vs **Accessibility-Friendly** only restyles *our* React screens (`html[data-a11y=on]`, remembered in `localStorage`). It does not restyle the site you scanned.
 
-## Locked product decisions
 
-| ID | Choice |
-| --- | --- |
-| Runtime | FastAPI + this Vite/React app. Steel hosts Chrome. Playwright `connect_over_cdp`. **No LLM click-agent for navigation.** |
-| Login | Our app login. Demo account **in this README**. |
-| A11y toggle | Our UI only. |
-| Phase 2 data | **Y1** Yamana TSV (Apache-2.0). **M2** Mathur CSVs not in the repo. |
-| Parser | **P1** BeautifulSoup. |
-| Findings UI | Payment Safety + wording categories (Yamana / Mathur taxonomy) |
-| Scan a11y rating | Removed from the product UI |
-| Payment Safety | Safe Browsing + payment-related dark-pattern categories + cancel/fee heuristics |
+### Scan a site
 
-## Copyright and licenses (what we ship vs cite)
+1. Sign in → `POST /scan` (`skip_agent: true` by default).
+2. Steel `/v1/scrape` returns HTML/text. (A session is also created so a viewer link can exist; scrape is not bound to `sessionId` because that 404’d.)
+3. Optional axe path: Steel tab + Playwright CDP, inject vendored axe-core, then fall back to scrape if that fails. **Not** shown as a senior a11y score in the UI.
+4. Chunk text → **TF-IDF + logistic regression** (`backend/classifier/`). Drop the “Not Dark Pattern” label from the report.
+5. BeautifulSoup heuristics: urgency copy, call-to-cancel, confirmshaming, pre-checked boxes, tiny text, hidden cancel.
+6. Google Safe Browsing if a key is set.
+7. **Payment Safety** band + reasons. Poll `GET /scan/{id}`.
 
-We are not lawyers. This is what we actually put in the repo and what we refused to copy.
+**Steel login demo** (`POST /demo/login`): fake HTML inside cloud Chrome. Steel **cannot see localhost**, so this is not “log into our Vite app from the cloud.”
 
-### Shipped in this repository
+### Subscriptions
 
-| Artifact | License | Where | What we did |
-| --- | --- | --- | --- |
-| Yamana `ec-darkpattern` TSV | Apache-2.0 | `backend/classifier/data/` + `NOTICE.txt` | Train the wording model. Keep their notice. Paper: [arXiv:2211.06543](https://arxiv.org/abs/2211.06543). |
-| axe-core 4.10.3 (`axe.min.js`) | [MPL-2.0](https://www.mozilla.org/en-US/MPL/2.0/) | `backend/detect/vendor/` | Used **as a library**, injected into the Steel page. **Not modified.** License text: `LICENSE-axe-core.txt`. MPL requires that if you distribute this file, you keep the license and notice. |
-| Our application code | Your/hackathon project code | `backend/`, `frontend/` | Original wiring, heuristics, score, UI. |
+- **Guide me** — static steps (Netflix gets a canned Account → Membership path). No Steel.
+- **GymPlus** (`example.com` or name GymPlus) — in-app fake page. Confirm last click. No Steel.
+- **Any other http URL** — Steel + Playwright: `goto`, try Account/Billing/Cancel selectors, **pause** on captcha / 2FA / bot / payment fields. We name the stall; we do not bypass. Last Cancel still needs confirm.
 
-### Cited only — do **not** copy their code, crawlers, or dumps into this repo
 
-| Source | Why we do not vendor it |
-| --- | --- |
-| Mathur et al., *Dark Patterns at Scale* [arXiv:1907.07032](https://arxiv.org/abs/1907.07032) | The **paper** is citable. The [GitHub repo](https://github.com/aruneshmathur/dark-patterns) is **GPLv3**. We do **not** vendor that crawler or their CSVs. Yamana already derived similar positive strings and published them under Apache-2.0; we cite Mathur as the academic source of the pattern types. |
-| WebAIM Million / WAVE exports | Cite WebAIM if you talk about prevalence. **Do not** redistribute WAVE dumps; see [WAVE terms](https://wave.webaim.org/terms). |
-| AccessGuru / DPDGPT (CC BY 4.0) | Allowed with credit. We **did not pull them** (G1) to keep the pipeline small. |
 
-### Third-party services (not redistributed)
+### Locked choices
 
-Steel, Google Safe Browsing, and Groq/OpenAI are used over the network under *their* terms. We do not bundle their models or browsers. Keys stay in `.env`.
 
-### Original sites you scan
+|             |                                                      |
+| ----------- | ---------------------------------------------------- |
+| Runtime     | FastAPI + Vite/React                                 |
+| Browser     | **Steel Browser** (cloud Chrome), not Steel Computer |
+| Clicks      | Playwright recipes. **No LLM click-agent**           |
+| Data        | Yamana TSV in repo. Mathur paper cite-only           |
+| Parser      | BeautifulSoup                                        |
+| Score in UI | Payment Safety, not a senior 0–100                   |
 
-Scraping someone else’s page for a demo is not a license to republish their HTML, logos, or articles. The report keeps a **short text preview**, not a full mirror. Do not dump live page HTML into git.
 
-## Payment Safety (transparent, not scientific)
+---
 
-Three bands: **No obvious payment traps**, **Be careful before you pay**, **Do not enter a card here**.
 
-Risk goes up for Safe Browsing malware, and for Yamana/Mathur-style categories that affect checkout (Sneaking, Forced Action, Obstruction, Urgency, Scarcity, Misdirection), plus cancel-trap / hidden-fee heuristics.
 
-**Not** WCAG. **Not** “safe to pay.” Screenshot add uses Groq vision (Claude if `ANTHROPIC_API_KEY` is set) and never auto-saves.
-
-We still **do not vendor Mathur’s GPLv3 CSVs**. Payment wording uses Yamana Apache-2.0, which uses the same category names as Mathur 2019.
-
-## Judge test templates
-
-Offline (no Steel / Groq / live sites), from `backend`:
+## Tests
 
 ```bash
-.venv/bin/python test_offline.py
+cd backend
+.venv/bin/python test_offline.py   # no Steel / Groq / network
+.venv/bin/python test_live.py      # needs API up; uses Steel + Groq minutes
 ```
 
-**Do not** use a real paid Netflix/Spotify password on a machine you do not trust. Semi-assisted cancel opens **Steel cloud Chrome**, which is not your laptop. CAPTCHA/2FA should **pause**, not get bypassed.
+Live script logs in as the demo user, adds GymPlus + Netflix, checks Guide me does not visit, extracts a fake PNG, scans example.com, completes GymPlus cancel, and expects Netflix cancel to **pause**.
 
-### T1 — Sign in and tab order
-1. Open the app. Sign in with the demo account.
-2. Expect **My subscriptions** first, then **Scan a site**.
-3. Toggle Accessibility-Friendly Mode: only *our* UI changes.
+Do not use a real paid-account password in Steel.
 
-### T2 — Manual add
-1. Add `GymPlus` + `https://example.com`.
-2. Add `Netflix` + `https://www.netflix.com` (or another public site).
-3. Expect both rows. Guide me on both. Semi-assisted cancel on both.
+---
 
-### T3 — Guide me (no auto-click)
-1. On Netflix (or any live URL), click **Guide me**.
-2. Expect a **checklist only** — no Steel, no scrape, no “could not load public snapshot.” Netflix is not opened from our servers.
-3. Tick boxes. We must not claim the subscription is cancelled.
 
-### T4 — GymPlus semi-assisted (fake cancel, in-app, no Steel)
-1. On GymPlus, **Semi-assisted cancel** → confirm.
-2. Expect the fake GymPlus page **in this app**, not a Steel viewer.
-3. Click **Cancel membership** on the demo, then **Yes, cancel now** (or **Yes, click the last Cancel button**).
-4. Expect **Membership cancelled. You will not be billed again.**
-5. Not Browser Use. Not a real gym.
 
-### T5 — Generic live site pause (uses Steel minutes)
-1. On Netflix (or `https://example.org`), **Semi-assisted cancel** → confirm.
-2. Expect a Steel tab to open the **live URL**.
-3. Expect a **pause**: login wall, bot check, CAPTCHA, missing Cancel, or (rare) a Cancel control waiting for confirm.
-4. Expect copy like **Stuck at [step] — needs your input** plus **I've done that step, continue** and a link to open the page on your own device.
-5. We must **not** solve a CAPTCHA or type 2FA.
+## Honest limits
 
-### T6 — Scan / Payment Safety (uses Steel scrape)
-1. **Scan a site** → `https://example.com`.
-2. Expect **Payment Safety** (not a 0–100 senior/accessibility score).
-3. Safe Browsing may be unavailable; that must not look like Steel failed if scrape is ok.
+- Safe Browsing often **HTTP 400** if the key is not a Google `AIza…` Browser API key. Scan still finishes. Errors are sanitized (no `?key=` in the UI). Rotate a key if it ever leaked in a report.
+- Classifier = Yamana strings + our regex/DOM. Marketing “SALE” can look like Urgency. We have a train/test split on **their TSV**, not a senior clinical study.
+- Steel minutes cost money. Viewer lasts ~2 minutes. Cloud Chrome ≠ the user’s laptop.
+- `backend/agent/cancel_flow.py` still imports **browser-use**. Default path does not call it.
+- axe maps a **small** set of rules; other hits get a generic sentence. Accessibility-Friendly mode is **not** a WCAG claim for our UI.
+- CORS: localhost:5173 only. Not multi-user beyond the shared demo password.
 
-### T7 — Screenshot prefill (Groq)
-1. Paste or upload a fake bill image (not a real bank statement if you can avoid it).
-2. **Read screenshot into the form**.
-3. Expect fields to fill or a clear error. **Add subscription** is still required to save.
-4. We must not invent a Netflix cancel URL that was not in the picture.
+---
 
-### T8 — Session gone
-1. Restart the API while a scan is polling.
-2. Expect a clear “scan is gone / run again” — not an infinite 404 loop.
+## Licenses
 
-### T9 — What must never happen
-- Browser Use choosing clicks on a live bill.
-- Keys printed in the report.
-- Claiming we cancelled Netflix without a confirm + a real in-session click you approved.
+Hackathon code in this repo is ours. Third-party pieces we actually ship:
 
-## Honest gaps and known bugs
+- **Yamana** dark-pattern TSV — Apache-2.0 (`backend/classifier/data/` + their `NOTICE.txt`)
+- **axe-core** 4.10.3 — MPL-2.0, unmodified (`backend/detect/vendor/`)
 
-- **Google Safe Browsing** may fail (HTTP 400) if the key is not a Google Cloud Browser API key (usually starts with `AIza`). The scan still finishes; the badge may be `error`. Error text is **sanitized** so the key is not echoed in the UI (httpx used to put `?key=…` in `HTTPStatusError`). If you ever saw a key in a scan error, **rotate it**.
-- The wording model includes a **Not Dark Pattern** class. We drop that label from the report so a clean page is not listed as a “pattern.”
-- **Steel minutes** are real money/quota. Every scrape, login demo, and axe scan opens cloud Chrome. Cloud Chrome **cannot load your localhost UI**.
-- **`backend/agent/cancel_flow.py`** still depends on `browser-use`. Left in the tree; default path does not call it. That is leftover, not the Phase 1 navigation design.
-- Classifier quality is only as good as Yamana’s labels plus our regex/DOM heuristics. False positives and missed patterns will happen.
-- axe is mapped for a **small set** of rule ids (contrast, alt text, labels, button/link names, title, lang, target size). Other axe violations still appear with a generic “page barrier” sentence.
-- Jobs live **in memory**. Restarting uvicorn wipes scans. Not multi-user safe beyond a shared demo password.
-- CORS is localhost:5173 only.
-- Accessibility-Friendly mode does not claim WCAG 2.x conformance for our own UI.
-- We did not run a lawyer review. License table above is our working stance.
+Mathur 2019 is cited for category names only; we do not include their GPLv3 crawler or CSVs. Steel, Groq, Claude, and Safe Browsing are remote APIs (keys in `.env`, never in git).
 
-## API (current)
+---
 
-| Method | Path | Auth | Body / notes |
-| --- | --- | --- | --- |
-| GET | `/health` | no | `{ "status": "ok" }` |
-| POST | `/auth/login` | no | `{ "username", "password" }` → session cookie |
-| POST | `/auth/logout` | cookie | |
-| GET | `/auth/me` | cookie | |
-| POST | `/demo/login` | cookie | Steel + Playwright demo; uses Steel quota |
-| POST | `/scan` | cookie | `{ "url", "skip_agent": true }` |
-| GET | `/scan/{scan_id}` | cookie | Job + `report.payment_safety` |
-| GET/POST | `/subscriptions/` | cookie | Manual list |
-| POST | `/subscriptions/extract` | cookie | Screenshot → fields (not saved) |
-| POST | `/subscriptions/{id}/guide` | cookie | Static checklist only; does not visit the merchant |
-| POST | `/subscriptions/{id}/cancel` | cookie | Semi-assisted Playwright; `{ confirmed: true }` |
-| POST | `/subscriptions/jobs/{id}/confirm` | cookie | Continue or last-click confirm |
+## References
 
-## Repo map (phases 1–4)
 
-| Area | Files |
-| --- | --- |
-| Auth | `backend/auth.py` |
-| Scan orchestration | `backend/main.py` |
-| Steel + Playwright | `backend/nav/steel_playwright.py`, `backend/nav/login_demo.py` |
-| Scrape / leftover agent | `backend/agent/scrape.py`, `backend/agent/cancel_flow.py` |
-| Heuristics + senior copy | `backend/detect/heuristics.py`, `backend/detect/senior_copy.py` |
-| axe | `backend/detect/a11y.py`, `backend/detect/vendor/` |
-| Score | `backend/score/payment.py` |
-| Subscriptions | `backend/subscriptions/` + `frontend/src/Subscriptions.jsx` |
-| Recipes / blockers | `backend/nav/recipe_player.py`, `backend/nav/blockers.py`, `backend/nav/gymplus_page.py` |
-| Classifier | `backend/classifier/` (train, predict, Yamana TSV + NOTICE) |
-| Safe Browsing | `backend/safety/check.py` |
-| UI | `frontend/src/App.jsx`, `a11y.jsx`, `App.css` |
 
-Phase 5 (same React app, score + flags on the report) is in that UI. There is no second frontend.
+### How each source is used
+
+
+| Source                          | In the product?                       | Role                                                            |
+| ------------------------------- | ------------------------------------- | --------------------------------------------------------------- |
+| Yamana Lab *ec-darkpattern* TSV | **Yes** (`yamana-ec-darkpattern.tsv`) | Train TF-IDF + logistic regression                              |
+| Mathur et al. 2019              | **Cite only**                         | Category names. No GPLv3 files                                  |
+| Yada et al. 2022                | Cite                                  | Paper for the TSV (their RoBERTa baseline is **not** our model) |
+| Cialdini, *Influence*           | Cite                                  | Explanations in `backend/psych/mapping.json`                    |
+| axe-core 4.10.3                 | **Yes**                               | Optional rules in Steel Chrome                                  |
+| Steel.dev Browser               | **API**                               | Scrape + session + CDP                                          |
+| Playwright                      | **Yes**                               | Drive Steel; not an LLM clicker                                 |
+| scikit-learn / joblib           | **Yes**                               | `dark_patterns.joblib`                                          |
+| BeautifulSoup4                  | **Yes**                               | DOM heuristics                                                  |
+| Groq                            | **API**                               | Screenshot → form fields only                                   |
+| Anthropic Claude                | **API** (optional)                    | Same extract if key set                                         |
+| Google Safe Browsing            | **API**                               | URL malware check                                               |
+| FastAPI, Uvicorn, React, Vite   | **Yes**                               | App                                                             |
+| Browser Use                     | Tree, **off**                         | Leftover                                                        |
+| WAVE / AccessGuru               | **Not used**                          | So we do not claim we shipped them                              |
+
+
+
+
+### Dataset and papers
+
+1. **Yamana Laboratory.** *EC Dark Pattern Dataset*. [yamanalab/ec-darkpattern](https://github.com/yamanalab/ec-darkpattern) (Apache-2.0). Local: `backend/classifier/data/`. Upstream: `https://raw.githubusercontent.com/yamanalab/ec-darkpattern/master/dataset/dataset.tsv`.
+2. **Yada, Y., Feng, J., Matsumoto, T., Fukushima, N., Kido, F., and Yamana, H.** (2022). *Dark patterns in e-commerce: a dataset and its baseline evaluations*. IEEE BigData 2022. [arXiv:2211.06543](https://arxiv.org/abs/2211.06543).
+3. **Mathur, A., Acar, G., Friedman, M. J., Lucherini, E., Mayer, J., Chetty, M., and Narayanan, A.** (2019). *Dark Patterns at Scale: Findings from a Crawl of 11K Shopping Websites*. PACM HCI (CSCW). [arXiv:1907.07032](https://arxiv.org/abs/1907.07032).
+4. **Cialdini, R. B.** *Influence: The Psychology of Persuasion*. Harper Business.
+5. **Brignull, H.** *Deceptive patterns* (formerly darkpatterns.org). Term origin; we do not ship that corpus.
+
+
+
+### Software and APIs
+
+1. **Deque.** axe-core v4.10.3. [github.com/dequelabs/axe-core](https://github.com/dequelabs/axe-core) (MPL-2.0).
+2. **Pedregosa, F., et al.** (2011). *Scikit-learn: Machine Learning in Python*. JMLR 12.
+3. **Beautiful Soup** — HTML parser for heuristics.
+4. **Steel.dev** — [docs.steel.dev](https://docs.steel.dev). **Browser**, not Computer.
+5. **Playwright** — [playwright.dev](https://playwright.dev). CDP into Steel.
+6. **Google Safe Browsing** — [developers.google.com/safe-browsing](https://developers.google.com/safe-browsing).
+7. **Groq** — [groq.com](https://groq.com) (`OPENAI_BASE_URL=https://api.groq.com/openai/v1`).
+8. **Anthropic** — [docs.anthropic.com](https://docs.anthropic.com).
+9. **FastAPI**, Uvicorn, Pydantic, httpx, python-dotenv.
+10. **React**, **Vite**.
+11. **Browser Use** — leftover. [github.com/browser-use/browser-use](https://github.com/browser-use/browser-use).
+
+---
+
+
+
+## API
+
+Vite proxies these from `:5173`. Cookie = signed-in demo user.
+
+
+| Method   | Path                               | Auth   | Notes                                  |
+| -------- | ---------------------------------- | ------ | -------------------------------------- |
+| GET      | `/health`                          | no     | `{ "status": "ok" }`                   |
+| POST     | `/auth/login`                      | no     | `{ "username", "password" }`           |
+| POST     | `/auth/logout`                     | cookie |                                        |
+| GET      | `/auth/me`                         | cookie |                                        |
+| POST     | `/demo/login`                      | cookie | Steel + Playwright fake login          |
+| POST     | `/scan`                            | cookie | `{ "url", "skip_agent": true }`        |
+| GET      | `/scan/{id}`                       | cookie | Job + `report.payment_safety`          |
+| GET/POST | `/subscriptions/`                  | cookie | List / add                             |
+| POST     | `/subscriptions/extract`           | cookie | Screenshot → fields (not saved)        |
+| POST     | `/subscriptions/{id}/guide`        | cookie | Checklist; does not visit the merchant |
+| POST     | `/subscriptions/{id}/cancel`       | cookie | `{ "confirmed": true }`                |
+| POST     | `/subscriptions/jobs/{id}/confirm` | cookie | Continue or last click                 |
+
+
+---
+
+
+
+## Repo map
+
+
+| Area                   | Files                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| Auth                   | `backend/auth.py`                                                                        |
+| Scan                   | `backend/main.py`                                                                        |
+| Steel session / scrape | `backend/agent/steel_session.py`, `backend/agent/scrape.py`                              |
+| Playwright on Steel    | `backend/nav/steel_playwright.py`, `backend/nav/login_demo.py`                           |
+| Cancel recipes         | `backend/nav/recipe_player.py`, `backend/nav/blockers.py`, `backend/nav/gymplus_page.py` |
+| Leftover agent         | `backend/agent/cancel_flow.py`                                                           |
+| Heuristics             | `backend/detect/heuristics.py`, `backend/detect/senior_copy.py`                          |
+| axe                    | `backend/detect/a11y.py`, `backend/detect/vendor/`                                       |
+| Payment Safety         | `backend/score/payment.py`                                                               |
+| Classifier             | `backend/classifier/` (train, predict, Yamana TSV + NOTICE)                              |
+| Safe Browsing          | `backend/safety/check.py`                                                                |
+| Subscriptions          | `backend/subscriptions/`, `frontend/src/Subscriptions.jsx`                               |
+| UI                     | `frontend/src/App.jsx`, `a11y.jsx`, `App.css`                                            |
+
+
