@@ -46,50 +46,6 @@ Two tabs. **My subscriptions** is first.
 
 ---
 
-
-
-## Judge demo (start here)
-
-
-
-### Login (our app only)
-
-This is **not** Netflix, Google, Groq, or Steel.
-
-
-|          |                                                                                   |
-| -------- | --------------------------------------------------------------------------------- |
-| URL      | **[http://localhost:5173](http://localhost:5173)** (use this origin, not `:8000`) |
-| Username | `judge@demo.local`                                                                |
-| Password | `SeniorSafety2026`                                                                |
-
-
-Same values: `backend/.env.example` (`DEMO_USER` / `DEMO_PASSWORD`). Anyone with the repo can sign in locally. That is intentional.
-
-**API keys stay in gitignored** `backend/.env`**.** Never paste them into the UI or this file.
-
-### Five-minute script
-
-1. Sign in. Confirm **My subscriptions** is the first tab. Optional: toggle Accessibility-Friendly — only *our* chrome changes.
-2. Add **GymPlus** + `https://example.com`. Click **Guide me** — checklist only.
-3. **Semi-assisted cancel** on GymPlus → confirm → click **Cancel membership** on the fake page → **Yes, cancel now**. Expect *Membership cancelled. You will not be billed again.* This is **not** a real gym and **not** Steel.
-4. Add **Netflix** + `https://www.netflix.com`. **Guide me** — still a checklist; we do not scrape Netflix here.
-5. Optional: Netflix **Semi-assisted cancel**. Steel opens the live site and should **pause** (captcha / login). We must **not** say it cancelled. Do not type a real Netflix password into Steel.
-6. **Scan a site** → `https://example.com`. Expect **Payment Safety** (Steel scrape). Safe Browsing may show `error`; that is not a Steel failure if scrape is ok.
-7. Optional: upload a **fake** receipt → **Read screenshot into the form** → check fields → **Add subscription**. We must not invent a cancel URL that was not in the picture.
-
-
-
-### What must never happen in a demo
-
-- Browser Use picking clicks on a live bill
-- API keys in the report
-- “We cancelled Netflix” without your confirm **and** a real last click you approved (we do not complete that on Netflix)
-
----
-
-
-
 ## How to run
 
 ```bash
@@ -124,10 +80,62 @@ Jobs live **in memory**. Restarting uvicorn wipes scans and subscription rows.
 ---
 
 
+## Demo (for the judge)
+
+
+
+### Login (our app only)
+
+This is **not** Netflix, Google, Groq, or Steel.
+
+
+|          |                                                                                   |
+| -------- | --------------------------------------------------------------------------------- |
+| URL      | **[http://localhost:5173](http://localhost:5173)** (use this origin, not `:8000`) |
+| Username | `judge@demo.local`                                                                |
+| Password | `SeniorSafety2026`                                                                |
+
+
+Same values: `backend/.env.example` (`DEMO_USER` / `DEMO_PASSWORD`). Anyone with the repo can sign in locally. That is intentional.
+
+**API keys stay in gitignored** `backend/.env`**.** Never paste them into the UI or this file.
+
+### Demo examples 
+
+**GymPlus (Fake website for testing)**
+
+1. Sign in. Confirm **My subscriptions** is the first tab. Optional: toggle Accessibility-Friendly — only *our* chrome changes.
+2. Add **GymPlus** + `https://example.com`.
+3. Click **Cancellation guide** to view the checklist only.
+4. Click **Assisted help to cancel** on GymPlus → confirm → Click **Yes, cancel**. Confirm cancellation by clicking **Cancel membership**. 
+
+**Netflix (For testing)**
+
+1. Add **Netflix** + `https://www.netflix.com`.
+2. Click **Cancellation guide** — gives detailed cancellation step-by-step guide 
+6. Optional: Netflix **Assisted help to cancel**. Steel opens the live site, and if the cancellation needs human interface (login/verification), Steel will pause at that step. The website shows guidance for what to do next. 
+
+
+**Scan a site** 
+1. Enter `https://example.com`. Expect **Payment Safety** (Steel scrape). Safe Browsing may show `error`; that is not a Steel failure if scrape is ok.
+
+
+### What must never happen in a demo
+
+- Browser Use picking clicks on a live bill
+- API keys in the report
+- “We cancelled Netflix” without your confirm **and** a real last click you approved (we do not complete that on Netflix)
+
+---
+
 
 ## How it works
 
+### Subscriptions
 
+- **Guide me** — static steps (Netflix gets a canned Account → Membership path). No Steel.
+- **GymPlus** (`example.com` or name GymPlus) — in-app fake page. Confirm last click. No Steel.
+- **Any other http URL** — Steel + Playwright: `goto`, try Account/Billing/Cancel selectors, **pause** on captcha / 2FA / bot / payment fields. We name the stall; we do not bypass. Last Cancel still needs confirm.
 
 ### Scan a site
 
@@ -141,11 +149,6 @@ Jobs live **in memory**. Restarting uvicorn wipes scans and subscription rows.
 
 **Steel login demo** (`POST /demo/login`): fake HTML inside cloud Chrome. Steel **cannot see localhost**, so this is not “log into our Vite app from the cloud.”
 
-### Subscriptions
-
-- **Guide me** — static steps (Netflix gets a canned Account → Membership path). No Steel.
-- **GymPlus** (`example.com` or name GymPlus) — in-app fake page. Confirm last click. No Steel.
-- **Any other http URL** — Steel + Playwright: `goto`, try Account/Billing/Cancel selectors, **pause** on captcha / 2FA / bot / payment fields. We name the stall; we do not bypass. Last Cancel still needs confirm.
 
 
 
@@ -303,5 +306,3 @@ Vite proxies these from `:5173`. Cookie = signed-in demo user.
 | Safe Browsing          | `backend/safety/check.py`                                                                |
 | Subscriptions          | `backend/subscriptions/`, `frontend/src/Subscriptions.jsx`                               |
 | UI                     | `frontend/src/App.jsx`, `a11y.jsx`, `App.css`                                            |
-
-
