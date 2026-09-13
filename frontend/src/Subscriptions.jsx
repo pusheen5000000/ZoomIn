@@ -4,24 +4,31 @@ const POLL_MS = 900;
 
 function formatEvent(event) {
   const { type, message, ...rest } = event;
+  const text = message || "";
+  if (text.includes("STEEL_API_KEY") || text.toLowerCase().includes("api key")) {
+    return "We could not open this website right now. You can still use the step-by-step guide below.";
+  }
+  if (text.toLowerCase().includes("captcha") || text.toLowerCase().includes("login")) {
+    return "This website needs you to sign in or complete a security check. We will pause and let you take over.";
+  }
+  if (type === "status" && text.toLowerCase().includes("starting")) return "Opening the cancellation steps…";
+  if (type === "status" && text.toLowerCase().includes("opening")) return "Opening the cancellation page…";
+  if (type === "complete") return text || "The cancellation help is finished.";
+  if (type === "error") return "We could not finish this cancellation attempt. You can use the guide instead.";
   if (type === "agent_step") {
     const step = rest.step || {};
-    return `#${step.index ?? "?"} ${step.action || "step"} ${step.url || ""}\n${step.extracted || step.thought || step.error || ""}`;
+    return step.extracted || "Checking the next step…";
   }
-  const extras = Object.keys(rest)
-    .filter((key) => !["at", "step"].includes(key))
-    .map((key) => `${key}=${JSON.stringify(rest[key])}`)
-    .join(" ");
-  return `[${type}] ${message || ""} ${extras}`.trim();
+  return text || "Working on the next step…";
 }
 
 function GymPlusDemo({ stage, cancelled, onStartCancel, onKeep, onLastClick, lastClickReady }) {
   const done = cancelled || stage === "done";
   return (
-    <div className="gymplus-demo" aria-label="GymPlus demo page">
+    <div className="gymplus-demo" aria-label="GymPlus cancellation page">
       <h3>GymPlus membership</h3>
-      <p className="meta">Plan: Senior weekday · $29.99 / month · fake demo</p>
-      <p className={done ? "ok-msg" : undefined}>
+      <p className="meta">Plan: Senior weekday · $29.99 / month</p>
+      <p className={done ? "gymplus-complete" : undefined}>
         {done
           ? "Membership cancelled. You will not be billed again."
           : stage === "confirm"
@@ -30,24 +37,32 @@ function GymPlusDemo({ stage, cancelled, onStartCancel, onKeep, onLastClick, las
       </p>
       {done ? null : stage === "confirm" ? (
         <p>
-          <span className="warn-inline">Wait — you will lose your discount. Are you sure?</span>
-          <br />
           <button type="button" className="secondary" onClick={onKeep}>
             Keep my plan
           </button>{" "}
-          <button type="button" onClick={onLastClick} disabled={!lastClickReady}>
+          <button type="button" className="btn-accent" onClick={onLastClick} disabled={!lastClickReady}>
             Yes, cancel now
           </button>
         </p>
       ) : (
         <p>
-          <button type="button" onClick={onStartCancel}>
+          <button type="button" className="btn-accent" onClick={onStartCancel}>
             Cancel membership
           </button>
         </p>
       )}
     </div>
   );
+}
+
+function subRisk(item) {
+  if (item.status === "cancelled") {
+    return { label: "Cancelled", level: "clear" };
+  }
+  if (item.recipe_id === "gymplus") {
+    return { label: "Needs extra help to cancel", level: "severe" };
+  }
+  return { label: "Not checked yet", level: "caution" };
 }
 
 export function Subscriptions({ onAuthLost }) {
@@ -193,7 +208,7 @@ export function Subscriptions({ onAuthLost }) {
       if (fields.renews) setRenews(fields.renews);
       setExtractNote(
         data.url_from_recipe
-          ? "No cancel link in the picture. Filled the known GymPlus demo URL. Check the form, then Add subscription."
+          ? "No cancel link in the picture. We filled the GymPlus account page. Check the form, then Add subscription."
           : `Check the form, then Add subscription. Nothing is saved yet${data.provider ? ` (read with ${data.provider})` : ""}.`
       );
     } catch (err) {
@@ -288,36 +303,34 @@ export function Subscriptions({ onAuthLost }) {
     !isGymDemo || gymStage === "confirm" || job?.status === "complete";
   const banner = job?.status === "needs_confirm"
     ? (result?.user_action_reason === "last_click"
-      ? "Needs your confirmation"
-      : `Stuck at ${result?.step_id || "a step"} — needs your input`)
+      ? "Please check the page, then approve the final step when you are ready."
+      : "The website needs your help before we can continue.")
     : result
       ? result.cancelled
-        ? "Cancelled successfully"
+        ? "Your cancellation was completed."
         : result.needs_user_action
-          ? `Stuck at ${result.step_id || "a step"} — needs your input`
-          : "Couldn't complete — here's what happened"
+          ? "The website needs your help before we can continue."
+          : "We could not finish this attempt. Please use the guide below."
       : job?.error
-        ? "Couldn't complete"
+        ? "We could not finish this attempt. Please use the guide below."
         : null;
   const bannerOk =
     result?.cancelled ||
     job?.status === "needs_confirm" && result?.user_action_reason === "last_click";
 
   return (
-    <div>
-      <p className="lede">
-        Add a subscription by typing, or upload a screenshot of an email or bill.
-        We fill the form for you to check — we do not save until you click Add
-        subscription.         You can add any site. <strong>Guide me</strong> is a checklist on your
-        own device. <strong>GymPlus</strong> semi-assisted cancel is a fake page
-        in this app. On a live site, semi-assisted cancel opens Steel Chrome
-        and usually pauses at login or CAPTCHA — we do not bypass those. Last
-        Cancel click still needs your confirm.
-      </p>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <h1>My subscriptions</h1>
+        <p className="lede">
+          Keep your subscriptions in one list. Add one by typing or upload a
+          bill or email. Check the details, then choose a cancellation guide or
+          assisted help.
+        </p>
+      </div>
 
-      <div
-        className="panel"
-        style={{ marginBottom: 16 }}
+      <section
+        className="upload-card"
         onPaste={(event) => {
           const item = [...(event.clipboardData?.items || [])].find((entry) =>
             entry.type.startsWith("image/")
@@ -328,123 +341,180 @@ export function Subscriptions({ onAuthLost }) {
           }
         }}
       >
-        <h2>Add by screenshot</h2>
-        <p className="meta">
-          Upload or paste an image. Uses your Groq key (already in .env). If you
-          later add ANTHROPIC_API_KEY, Claude is used first.
+        <div className="upload-card-head">
+          <h2>Add from a screenshot</h2>
+          <span className="pill-note">Nothing is saved until you press Add</span>
+        </div>
+        <p className="meta" style={{ fontSize: 18 }}>
+          Take a photo or screenshot of a receipt email, bank charge, or bill.
+          We will find the name, price, renewal date, and website, then show you
+          the details so you can check them before saving.
         </p>
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp"
-          onChange={(event) => readFile(event.target.files?.[0])}
-        />
-        {preview ? (
-          <p>
-            <img src={preview} alt="Screenshot to read" style={{ maxWidth: "100%", maxHeight: 180 }} />
-          </p>
-        ) : null}
-        <p>
-          <button type="button" className="secondary" onClick={extractScreenshot} disabled={extractBusy}>
-            {extractBusy ? "Reading…" : "Read screenshot into the form"}
-          </button>
-        </p>
-        {extractNote ? <p className="ok-msg">{extractNote}</p> : null}
-      </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center" }}>
+          <label className="file-picker">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#12203A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 17V4" />
+              <path d="M6.5 9.5L12 4l5.5 5.5" />
+              <path d="M4 17v2.5h16V17" />
+            </svg>
+            Choose a screenshot
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              onChange={(event) => readFile(event.target.files?.[0])}
+              style={{ display: "none" }}
+            />
+          </label>
+          {preview ? (
+            <img src={preview} alt="Screenshot to read" style={{ maxWidth: 140, maxHeight: 90, borderRadius: 10, border: "2px solid var(--line)" }} />
+          ) : (
+            <span className="meta">No file chosen yet</span>
+          )}
+          {preview ? (
+            <button type="button" className="btn-secondary" onClick={extractScreenshot} disabled={extractBusy}>
+              {extractBusy ? "Reading…" : "Read screenshot"}
+            </button>
+          ) : null}
+        </div>
 
-      <form className="login-form" onSubmit={addItem}>
-        <h2>Review and add</h2>
-        <label htmlFor="sub-name">Name</label>
-        <input
-          id="sub-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <label htmlFor="sub-url">Account or cancel page URL</label>
-        <input
-          id="sub-url"
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          required
-        />
-        <label htmlFor="sub-cost">Cost (optional)</label>
-        <input id="sub-cost" value={cost} onChange={(e) => setCost(e.target.value)} />
-        <label htmlFor="sub-renews">Renews (optional)</label>
-        <input
-          id="sub-renews"
-          value={renews}
-          onChange={(e) => setRenews(e.target.value)}
-        />
-        <button type="submit">Add subscription</button>
-      </form>
+        {extractBusy ? (
+          <div className="status-row">
+            <span className="pulse-dot" />
+            <span style={{ fontWeight: 600 }}>Reading the screenshot…</span>
+          </div>
+        ) : null}
+
+        {extractNote ? <p className="ok-msg">{extractNote}</p> : null}
+
+        <form className="draft-card" onSubmit={addItem}>
+          <span style={{ fontWeight: 600, fontSize: 19 }}>Check these details, then add.</span>
+          <div className="draft-grid">
+            <label className="field" htmlFor="sub-name">
+              Name
+              <input id="sub-name" value={name} onChange={(e) => setName(e.target.value)} required />
+            </label>
+            <label className="field" htmlFor="sub-cost">
+              Cost
+              <input id="sub-cost" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="optional" />
+            </label>
+            <label className="field" htmlFor="sub-renews">
+              Renews
+              <input id="sub-renews" value={renews} onChange={(e) => setRenews(e.target.value)} placeholder="optional" />
+            </label>
+            <label className="field" htmlFor="sub-url">
+              Account or cancel page
+              <input id="sub-url" type="url" value={url} onChange={(e) => setUrl(e.target.value)} required />
+            </label>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            <button type="submit" className="btn-accent">Add subscription</button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setName("");
+                setCost("");
+                setRenews("");
+                setUrl("https://example.com");
+                setPreview("");
+                setExtractNote("");
+              }}
+            >
+              Start over
+            </button>
+          </div>
+        </form>
+      </section>
 
       {error ? <p className="error" role="alert">{error}</p> : null}
 
       {items.length === 0 ? (
         <p className="meta">No subscriptions yet. Add one above.</p>
       ) : (
-        items.map((item) => (
-          <article className="pattern sub-row" key={item.id}>
-            <strong>{item.name}</strong>
-            <div className="meta">
-              {item.cost || "cost unknown"}
-              {item.renews ? ` · renews ${item.renews}` : ""}
-              {` · ${item.status}`}
+        items.map((item) => {
+          const risk = subRisk(item);
+          return (
+          <article className="sub-card" key={item.id}>
+            <div className="sub-card-main">
+              <div className="sub-card-title">
+                <h2>{item.name}</h2>
+                <span className={`badge ${risk.level}`}>{risk.label}</span>
+              </div>
+              <p className="meta" style={{ fontSize: 17 }}>
+                {item.cost || "cost unknown"}
+                {item.renews ? ` · renews ${item.renews}` : ""}
+                {` · ${item.status}`}
+              </p>
+              {item.recipe_id !== "gymplus" ? (
+                <p className="meta">The guide gives simple steps. Assisted help pauses when you need to take over.</p>
+              ) : null}
+              {item.last_outcome ? <p>{item.last_outcome === "Couldn't complete" ? "The last attempt could not be completed." : item.last_outcome}</p> : null}
             </div>
-            <p className="meta">
-              {item.recipe_id === "gymplus"
-                ? "GymPlus fake page in this app. Semi-assisted cancel does not use Steel."
-                : "Guide me is a checklist only. Semi-assisted cancel would try Steel and usually get blocked (login/CAPTCHA)."}
-            </p>
-            {item.last_outcome ? <p>{item.last_outcome}</p> : null}
-            <p>
+            <div className="sub-card-actions">
               <button
                 type="button"
+                className={guideFor?.id === item.id && guide ? "btn-primary active" : "btn-primary"}
                 onClick={() => openGuide(item)}
                 disabled={busy}
               >
-                {busy && guideFor?.id === item.id ? "Opening guide…" : "Guide me"}
-              </button>{" "}
+                {busy && guideFor?.id === item.id ? "Opening guide…" : guideFor?.id === item.id && guide ? "Hide steps" : "Cancellation guide"}
+              </button>
               <button
                 type="button"
-                className="secondary"
+                className="btn-secondary"
                 onClick={() => setPending(item)}
                 disabled={item.status === "cancelled" || busy}
               >
-                Semi-assisted cancel
+                Cancel
               </button>
-            </p>
+            </div>
             {(item.log || []).length ? (
               <ul className="friction">
-                {item.log.slice(-5).reverse().map((entry, index) => (
+                {item.log.slice(-1).reverse().map((entry, index) => (
                   <li key={index}>
-                    {entry.at}: {entry.outcome}
-                    {entry.summary ? ` — ${entry.summary}` : ""}
+                    {entry.outcome === "Couldn't complete"
+                      ? "The previous attempt could not be completed. Try the guide instead."
+                      : entry.outcome === "Cancel started"
+                        ? "Cancellation help was started."
+                        : entry.outcome}
                   </li>
                 ))}
               </ul>
             ) : null}
           </article>
-        ))
+          );
+        })
       )}
 
       {guide ? (
-        <section className="panel" style={{ marginTop: 16 }}>
-          <h2>Cancel guide for {guide.name}</h2>
+        <section className="guide-panel">
+          <div className="guide-panel-head">
+            <h3>Cancelling {guide.name}</h3>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Hide the steps"
+              title="Hide the steps"
+              onClick={() => setGuide(null)}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FDF4DC" strokeWidth="2.4" strokeLinecap="round">
+                <path d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+          </div>
           <p>{guide.summary}</p>
-          <p className="meta">
+          <p style={{ color: "#d8e2f2" }}>
             Check items off as you go. This list does not control the website.
           </p>
           <p>
-            <a href={guide.url} target="_blank" rel="noreferrer">
+            <a href={guide.url} target="_blank" rel="noreferrer" style={{ color: "#F9AC4F" }}>
               Open {guide.url} in your browser
             </a>
           </p>
-          <ol className="friction">
+          <ol>
             {(guide.steps || []).map((step) => (
-              <li key={step.id} style={{ marginBottom: 12 }}>
-                <label className="toggle" style={{ marginBottom: 4 }}>
+              <li key={step.id} style={{ marginBottom: 4 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, color: "#FDF4DC" }}>
                   <input
                     type="checkbox"
                     checked={Boolean(checked[step.id])}
@@ -454,7 +524,7 @@ export function Subscriptions({ onAuthLost }) {
                   />
                   <strong>{step.title}</strong>
                 </label>
-                <div className="meta">{step.detail}</div>
+                <div style={{ color: "#d8e2f2", fontSize: 15 }}>{step.detail}</div>
               </li>
             ))}
           </ol>
@@ -469,25 +539,23 @@ export function Subscriptions({ onAuthLost }) {
           <p>
             {pending.recipe_id === "gymplus" ? (
               <>
-                GymPlus is a <strong>fake</strong> membership. The cancel page
-                opens in this app — not Netflix, not Steel. You still confirm
-                the last click.
+                You will still approve the final step.
               </>
             ) : (
               <>
-                Playwright will open a Steel tab on the live URL, pause on
-                blockers, and will not click the last Cancel until you confirm.
-                Live sites often block cloud Chrome.
+                We will try to open the cancellation page and help with the
+                steps. If the site needs your password or a security check, we
+                will pause. You approve the final Cancel button.
               </>
             )}
             {" "}Confirm to start?
           </p>
           <p className="meta">{pending.url}</p>
-          <p>
-            <button type="button" onClick={confirmCancel} disabled={busy}>
-              {busy ? "Starting…" : "Yes, try to cancel"}
-            </button>{" "}
-            <button type="button" className="secondary" onClick={() => setPending(null)}>
+          <p style={{ display: "flex", gap: 12 }}>
+            <button type="button" className="btn-accent" onClick={confirmCancel} disabled={busy}>
+              {busy ? "Starting…" : "Yes, cancel"}
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => setPending(null)}>
               Never mind
             </button>
           </p>
@@ -497,37 +565,36 @@ export function Subscriptions({ onAuthLost }) {
       {job ? (
         <section className="panel" style={{ marginTop: 16 }}>
           <h2>
-            Semi-assisted cancel{" "}
+            Cancellation help{" "}
             {job.status === "running" || job.status === "queued" ? "· in progress" : ""}
             {job.status === "needs_confirm" ? "· waiting for you" : ""}
           </h2>
           {banner ? (
             <p className={bannerOk ? "ok-msg" : "error"}>{banner}</p>
           ) : null}
-          {result?.user_action ? <p>{result.user_action}</p> : null}
+          {result?.user_action && !isGymDemo ? <p>{result.user_action}</p> : null}
           {isGymDemo ? (
             <GymPlusDemo
               stage={job?.status === "complete" && result?.cancelled ? "done" : gymStage}
               cancelled={Boolean(result?.cancelled)}
-              lastClickReady={!busy && job?.status === "needs_confirm"}
+              lastClickReady={!busy && job?.status === "needs_confirm" && gymStage === "confirm"}
               onStartCancel={() => setGymStage("confirm")}
               onKeep={() => setGymStage("home")}
               onLastClick={confirmLastClick}
             />
           ) : null}
-          {job.status === "needs_confirm" ? (
+          {job.status === "needs_confirm" && !isGymDemo ? (
             <p>
               <button
                 type="button"
+                className="btn-accent"
                 onClick={confirmLastClick}
                 disabled={busy || !lastClickOk}
               >
                 {busy
                   ? "Resuming…"
                   : result?.user_action_reason === "last_click"
-                    ? isGymDemo && gymStage !== "confirm"
-                      ? "Click Cancel membership on the demo first"
-                      : "Yes, click the last Cancel button"
+                    ? "Yes, click the last Cancel button"
                     : "I've done that step, continue"}
               </button>
             </p>
@@ -543,11 +610,11 @@ export function Subscriptions({ onAuthLost }) {
           {result?.viewer_url ? (
             <p>
               <a href={result.viewer_url} target="_blank" rel="noreferrer">
-                Watch Steel session (about 2 minutes; may be view-only)
+                View the helper session (about 2 minutes; may be view-only)
               </a>
             </p>
           ) : null}
-          <pre className="trace">{traceText || "Waiting…"}</pre>
+          {!isGymDemo ? <pre className="trace">{traceText || "Waiting…"}</pre> : null}
         </section>
       ) : null}
     </div>
