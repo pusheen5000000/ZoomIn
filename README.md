@@ -68,16 +68,24 @@ Same values: `backend/.env.example` (`DEMO_USER` / `DEMO_PASSWORD`). Anyone with
 
 **API keys stay in gitignored** `backend/.env`**.** Never paste them into the UI or this file.
 
-### Five-minute script
+### Demo examples 
+
+**GymPlus (Fake website for testing)**
 
 1. Sign in. Confirm **My subscriptions** is the first tab. Optional: toggle Accessibility-Friendly — only *our* chrome changes.
-2. Add **GymPlus** + `https://example.com`. Click **Guide me** — checklist only.
-3. **Semi-assisted cancel** on GymPlus → confirm → click **Cancel membership** on the fake page → **Yes, cancel now**. Expect *Membership cancelled. You will not be billed again.* This is **not** a real gym and **not** Steel.
-4. Add **Netflix** + `https://www.netflix.com`. **Guide me** — still a checklist; we do not scrape Netflix here.
-5. Optional: Netflix **Semi-assisted cancel**. Steel opens the live site and should **pause** (captcha / login). We must **not** say it cancelled. Do not type a real Netflix password into Steel.
-6. **Scan a site** → `https://example.com`. Expect **Payment Safety** (Steel scrape). Safe Browsing may show `error`; that is not a Steel failure if scrape is ok.
-7. Optional: upload a **fake** receipt → **Read screenshot into the form** → check fields → **Add subscription**. We must not invent a cancel URL that was not in the picture.
+2. Add **GymPlus** + `https://example.com`.
+3. Click **Cancellation guide** to view the checklist only.
+4. Click **Assisted help to cancel** on GymPlus → confirm → Click **Yes, cancel**. Confirm cancellation by clicking **Cancel membership**. 
 
+**Netflix (For testing)**
+
+1. Add **Netflix** + `https://www.netflix.com`.
+2. Click **Cancellation guide** — gives detailed cancellation step-by-step guide 
+6. Optional: Netflix **Assisted help to cancel**. Steel opens the live site, and if the cancellation needs human interface (login/verification), Steel will pause at that step. The website shows guidance for what to do next. 
+
+
+**Scan a site** 
+1. Enter `https://example.com`. Expect **Payment Safety** (Steel scrape). Safe Browsing may show `error`; that is not a Steel failure if scrape is ok.
 
 
 ### What must never happen in a demo
