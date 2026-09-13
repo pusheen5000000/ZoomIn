@@ -46,6 +46,38 @@ Two tabs. **My subscriptions** is first.
 
 ---
 
+## How to run
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m playwright install chromium   # driver only; Chrome still runs on Steel
+cp .env.example .env                    # fill STEEL_API_KEY, etc.
+python -m classifier.train              # Yamana TSV only
+cd ../frontend && npm install
+```
+
+`.env` (not committed): `STEEL_API_KEY`, `SAFE_BROWSING_API_KEY`, `OPENAI_API_KEY` (Groq `gsk_…` is fine), optional `ANTHROPIC_API_KEY`, `SESSION_SECRET` (dev default is not production-grade).
+
+**Terminal 1 — API**
+
+```bash
+cd backend && source .venv/bin/activate && uvicorn main:app --reload --port 8000
+```
+
+**Terminal 2 — UI**
+
+```bash
+cd frontend && npm run dev
+```
+
+Open **[http://localhost:5173](http://localhost:5173)**. Vite proxies `/auth`, `/scan`, `/demo`, `/health`, `/subscriptions` to port 8000. Logging in on `:8000` directly will not set the cookie the UI expects.
+
+Jobs live **in memory**. Restarting uvicorn wipes scans and subscription rows.
+
+---
 
 
 ## Judge demo (start here)
@@ -97,45 +129,13 @@ Same values: `backend/.env.example` (`DEMO_USER` / `DEMO_PASSWORD`). Anyone with
 ---
 
 
-
-## How to run
-
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m playwright install chromium   # driver only; Chrome still runs on Steel
-cp .env.example .env                    # fill STEEL_API_KEY, etc.
-python -m classifier.train              # Yamana TSV only
-cd ../frontend && npm install
-```
-
-`.env` (not committed): `STEEL_API_KEY`, `SAFE_BROWSING_API_KEY`, `OPENAI_API_KEY` (Groq `gsk_…` is fine), optional `ANTHROPIC_API_KEY`, `SESSION_SECRET` (dev default is not production-grade).
-
-**Terminal 1 — API**
-
-```bash
-cd backend && source .venv/bin/activate && uvicorn main:app --reload --port 8000
-```
-
-**Terminal 2 — UI**
-
-```bash
-cd frontend && npm run dev
-```
-
-Open **[http://localhost:5173](http://localhost:5173)**. Vite proxies `/auth`, `/scan`, `/demo`, `/health`, `/subscriptions` to port 8000. Logging in on `:8000` directly will not set the cookie the UI expects.
-
-Jobs live **in memory**. Restarting uvicorn wipes scans and subscription rows.
-
----
-
-
-
 ## How it works
 
+### Subscriptions
 
+- **Guide me** — static steps (Netflix gets a canned Account → Membership path). No Steel.
+- **GymPlus** (`example.com` or name GymPlus) — in-app fake page. Confirm last click. No Steel.
+- **Any other http URL** — Steel + Playwright: `goto`, try Account/Billing/Cancel selectors, **pause** on captcha / 2FA / bot / payment fields. We name the stall; we do not bypass. Last Cancel still needs confirm.
 
 ### Scan a site
 
@@ -149,11 +149,6 @@ Jobs live **in memory**. Restarting uvicorn wipes scans and subscription rows.
 
 **Steel login demo** (`POST /demo/login`): fake HTML inside cloud Chrome. Steel **cannot see localhost**, so this is not “log into our Vite app from the cloud.”
 
-### Subscriptions
-
-- **Guide me** — static steps (Netflix gets a canned Account → Membership path). No Steel.
-- **GymPlus** (`example.com` or name GymPlus) — in-app fake page. Confirm last click. No Steel.
-- **Any other http URL** — Steel + Playwright: `goto`, try Account/Billing/Cancel selectors, **pause** on captcha / 2FA / bot / payment fields. We name the stall; we do not bypass. Last Cancel still needs confirm.
 
 
 
